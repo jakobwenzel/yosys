@@ -602,6 +602,7 @@ checker_decl:
 		ast_stack.push_back(node);
 	} module_body TOK_ENDCHECKER {
 		delete $2;
+		removeNestedBlock(ast_stack.back());
 		ast_stack.pop_back();
 	};
 
@@ -1534,6 +1535,7 @@ always_stmt:
 		ast_stack.back()->children.push_back(block);
 		ast_stack.push_back(block);
 	} behavioral_stmt {
+		removeNestedBlock(ast_stack.back());
 		ast_stack.pop_back();
 		ast_stack.pop_back();
 	} |
@@ -1546,6 +1548,7 @@ always_stmt:
 		ast_stack.back()->children.push_back(block);
 		ast_stack.push_back(block);
 	} behavioral_stmt {
+		removeNestedBlock(ast_stack.back());
 		ast_stack.pop_back();
 		ast_stack.pop_back();
 	};
@@ -1860,6 +1863,7 @@ behavioral_stmt:
 			delete $3;
 		if ($7 != NULL)
 			delete $7;
+		removeNestedBlock(ast_stack.back());
 		ast_stack.pop_back();
 	} |
 	attr TOK_FOR '(' {
@@ -1874,6 +1878,7 @@ behavioral_stmt:
 		ast_stack.back()->children.push_back(block);
 		ast_stack.push_back(block);
 	} behavioral_stmt {
+		removeNestedBlock(ast_stack.back());
 		ast_stack.pop_back();
 		ast_stack.pop_back();
 	} |
@@ -1887,6 +1892,7 @@ behavioral_stmt:
 		ast_stack.back()->children.push_back(block);
 		ast_stack.push_back(block);
 	} behavioral_stmt {
+		removeNestedBlock(ast_stack.back());
 		ast_stack.pop_back();
 		ast_stack.pop_back();
 	} |
@@ -1900,6 +1906,7 @@ behavioral_stmt:
 		ast_stack.back()->children.push_back(block);
 		ast_stack.push_back(block);
 	} behavioral_stmt {
+		removeNestedBlock(ast_stack.back());
 		ast_stack.pop_back();
 		ast_stack.pop_back();
 	} |
@@ -1914,6 +1921,7 @@ behavioral_stmt:
 		ast_stack.push_back(block);
 		append_attr(node, $1);
 	} behavioral_stmt optional_else {
+		removeNestedBlock(ast_stack.back());
 		ast_stack.pop_back();
 		ast_stack.pop_back();
 	} |
@@ -1974,6 +1982,7 @@ optional_else:
 	TOK_ELSE {
 		AstNode *block = new AstNode(AST_BLOCK);
 		AstNode *cond = new AstNode(AST_COND, new AstNode(AST_DEFAULT), block);
+		removeNestedBlock(ast_stack.back());
 		ast_stack.pop_back();
 		ast_stack.back()->children.push_back(cond);
 		ast_stack.push_back(block);
@@ -1998,6 +2007,7 @@ case_item:
 		case_type_stack.push_back(0);
 	} behavioral_stmt {
 		case_type_stack.pop_back();
+		removeNestedBlock(ast_stack.back());
 		ast_stack.pop_back();
 		ast_stack.pop_back();
 	};
@@ -2140,6 +2150,7 @@ gen_stmt:
 			delete $2;
 		if ($6 != NULL)
 			delete $6;
+		removeNestedBlock(ast_stack.back());
 		ast_stack.pop_back();
 	} |
 	TOK_MSG_TASKS {
@@ -2158,6 +2169,7 @@ gen_stmt_block:
 		ast_stack.back()->children.push_back(node);
 		ast_stack.push_back(node);
 	} gen_stmt_or_module_body_stmt {
+		removeNestedBlock(ast_stack.back());
 		ast_stack.pop_back();
 	};
 
