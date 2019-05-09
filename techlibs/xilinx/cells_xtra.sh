@@ -140,6 +140,14 @@ function xtract_cell_decl()
 	xtract_cell_decl STARTUPE2 "(* keep *)"
 	xtract_cell_decl USR_ACCESSE2
 	xtract_cell_decl XADC
+	xtract_cell_decl DCM
+	xtract_cell_decl DCM_SP
+	xtract_cell_decl IDDR2
+	xtract_cell_decl ODDR2
+	xtract_cell_decl MULT18X18
+	xtract_cell_decl RAMB16_S9_S9
+	xtract_cell_decl RAMB16_S18_S18
+	xtract_cell_decl RAMB16_S36_S36
 } > cells_xtra.new
 
 mv cells_xtra.new cells_xtra.v
