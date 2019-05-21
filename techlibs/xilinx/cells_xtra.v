@@ -4236,3 +4236,24 @@ module RAMB16_S36_S36 (...);
     input ENB, CLKB, WEB, SSRB;
 endmodule
 
+module AND2B1L (...);
+    parameter [0:0] IS_SRI_INVERTED = 1'b0;
+    output O;
+    input DI;
+    input SRI;
+endmodule
+
+module OR2L (...);
+    parameter [0:0] IS_SRI_INVERTED = 1'b0;
+    output O;
+    input DI;
+    input SRI;
+endmodule
+
+module SRLC16E (...);
+    parameter [15:0] INIT = 16'h0000;
+    parameter [0:0] IS_CLK_INVERTED = 1'b0;
+    output Q, Q15;
+    input A0, A1, A2, A3, CE, CLK, D;
+endmodule
+

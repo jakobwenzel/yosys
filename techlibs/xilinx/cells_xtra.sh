@@ -148,6 +148,9 @@ function xtract_cell_decl()
 	xtract_cell_decl RAMB16_S9_S9
 	xtract_cell_decl RAMB16_S18_S18
 	xtract_cell_decl RAMB16_S36_S36
+	xtract_cell_decl AND2B1L
+	xtract_cell_decl OR2L
+	xtract_cell_decl SRLC16E
 } > cells_xtra.new
 
 mv cells_xtra.new cells_xtra.v
