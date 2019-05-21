@@ -49,7 +49,7 @@ namespace AST {
 // instantiate global variables (private API)
 namespace AST_INTERNAL {
 	bool flag_dump_ast1, flag_dump_ast2, flag_no_dump_ptr, flag_dump_vlog1, flag_dump_vlog2, flag_dump_rtlil, flag_nolatches, flag_nomeminit;
-	bool flag_nomem2reg, flag_mem2reg, flag_noblackbox, flag_lib, flag_nowb, flag_noopt, flag_icells, flag_pwires, flag_autowire;
+	bool flag_nomem2reg, flag_mem2reg, flag_noblackbox, flag_lib, flag_nowb, flag_noopt, flag_icells, flag_pwires, flag_autowire, flag_verify_dump_vlog;
 	AstNode *current_ast, *current_ast_mod;
 	std::map<std::string, AstNode*> current_scope;
 	const dict<RTLIL::SigBit, RTLIL::SigBit> *genRTLIL_subst_ptr = NULL;
@@ -363,7 +363,7 @@ static bool needGenerate(AstNodeType type) {
 		|| type == AST_GENBLOCK;
 }
 
-static bool areChildrenMissing(FILE * f, const std::string& indent, const AstNode * node, int neededChildren) {
+static bool areChildrenMissing(FILE * f, const std::string& indent, const AstNode * node, unsigned int neededChildren) {
 	if (node->children.size() < neededChildren) {
 		fprintf(f,"%s//Invalid %s with %d children!\n", indent.c_str(), type2str(node->type).c_str(), node->children.size());
 		return true;
@@ -395,7 +395,7 @@ void AstNode::dumpVlog(FILE *f, std::string indent, bool inGenerate, AstNodeType
 	}
 
 	for (auto &it : attributes) {
-		fprintf(f, "%s" "(* %s = ", indent.c_str(), id2vl(it.first.str()).c_str());
+		fprintf(f, "%s" "(* %s = ", indent.c_str(), AstNode::id2vl(it.first.str()).c_str());
 		it.second->dumpVlog(f, "", inGenerate, type);
 		fprintf(f, " *)%s", indent.empty() ? "" : "\n");
 	}
@@ -413,7 +413,7 @@ void AstNode::dumpVlog(FILE *f, std::string indent, bool inGenerate, AstNodeType
 	if (0) { case AST_INTERFACE: txt = "interface"; }
 	if (0) { case AST_MODULE: txt = "module"; }
 		{
-		fprintf(f, "%s" "%s %s(", txt.c_str(), indent.c_str(), id2vl(str).c_str());
+		fprintf(f, "%s" "%s %s(", txt.c_str(), indent.c_str(), AstNode::id2vl(str).c_str());
 
 		std::vector<AstNode *> portChildren;
 
@@ -431,7 +431,7 @@ void AstNode::dumpVlog(FILE *f, std::string indent, bool inGenerate, AstNodeType
 		});
 
 		for(auto child : portChildren) {
-				fprintf(f, "%s%s", first ? "" : ", ", id2vl(child->str).c_str());
+				fprintf(f, "%s%s", first ? "" : ", ", AstNode::id2vl(child->str).c_str());
 				first = false;
 			}
 		fprintf(f, ");\n");
@@ -492,7 +492,7 @@ void AstNode::dumpVlog(FILE *f, std::string indent, bool inGenerate, AstNodeType
 			child->dumpVlog(f, "", inGenerate, type);
 			fprintf(f, " ");
 		}
-		fprintf(f, "%s%s", id2vl(str).c_str(), (type==AST_WIRE && parentType != AST_NONE) ? ";\n" : "");
+		fprintf(f, "%s%s", AstNode::id2vl(str).c_str(), (type==AST_WIRE && parentType != AST_NONE) ? ";\n" : "");
 		break;
 
 	case AST_MEMORY:
@@ -513,7 +513,7 @@ void AstNode::dumpVlog(FILE *f, std::string indent, bool inGenerate, AstNodeType
 			fprintf(f, " ");
 			child->dumpVlog(f, "", inGenerate, type);
 			if (first)
-				fprintf(f, " %s", id2vl(str).c_str());
+				fprintf(f, " %s", AstNode::id2vl(str).c_str());
 			first = false;
 		}
 		fprintf(f, ";\n");
@@ -577,7 +577,7 @@ void AstNode::dumpVlog(FILE *f, std::string indent, bool inGenerate, AstNodeType
 		break;
 
 	case AST_IDENTIFIER:
-		fprintf(f, "%s", id2vl(str).c_str());
+		fprintf(f, "%s", AstNode::id2vl(str).c_str());
 		for (auto child : children)
 			child->dumpVlog(f, "", inGenerate, type);
 		break;
@@ -620,7 +620,7 @@ void AstNode::dumpVlog(FILE *f, std::string indent, bool inGenerate, AstNodeType
 		} else*/ {
 			fprintf(f, "%s" "begin", indent.c_str());
 			if (!str.empty()) {
-				fprintf(f, ": %s", id2vl(str).c_str());
+				fprintf(f, ": %s", AstNode::id2vl(str).c_str());
 			}
 			fprintf(f, "\n");
 			for (auto child : children)
@@ -779,14 +779,14 @@ void AstNode::dumpVlog(FILE *f, std::string indent, bool inGenerate, AstNodeType
 				fprintf(f, " real");
 			}
 		}
-		fprintf(f, " %s = ", id2vl(str).c_str());
+		fprintf(f, " %s = ", AstNode::id2vl(str).c_str());
 		children[0]->dumpVlog(f, "", inGenerate, type);
 		fprintf(f, ";\n");
 		break;
 
 
 	case AST_GENVAR:
-		fprintf(f, "%sgenvar %s;\n", indent.c_str(), id2vl(str).c_str());
+		fprintf(f, "%sgenvar %s;\n", indent.c_str(), AstNode::id2vl(str).c_str());
 		break;
 
 	case AST_GENFOR:
@@ -833,7 +833,7 @@ void AstNode::dumpVlog(FILE *f, std::string indent, bool inGenerate, AstNodeType
 	if (0) { case AST_CELLARRAY: node = children[1]; }
 	if (0) { case AST_CELL: node = this; }
 	{
-		std::string celltype = id2vl(node->children[0]->str);
+		std::string celltype = AstNode::id2vl(node->children[0]->str);
 		fprintf(f, "%s%s #(\n", indent.c_str(), celltype.c_str());
 
 		first = true;
@@ -848,7 +848,7 @@ void AstNode::dumpVlog(FILE *f, std::string indent, bool inGenerate, AstNodeType
 			}
 		}
 
-		fprintf(f, "\n%s) %s ", indent.c_str(), id2vl(node->str).c_str());
+		fprintf(f, "\n%s) %s ", indent.c_str(), AstNode::id2vl(node->str).c_str());
 
 		if (type==AST_CELLARRAY) {
 			children[0]->dumpVlog(f, "", inGenerate, type);
@@ -894,7 +894,7 @@ void AstNode::dumpVlog(FILE *f, std::string indent, bool inGenerate, AstNodeType
 	case AST_PARASET: {
 		fprintf(f, indent.c_str());
 		if (!str.empty()) {
-			fprintf(f,".%s(", id2vl(str).c_str());
+			fprintf(f,".%s(", AstNode::id2vl(str).c_str());
 		}
 		for (auto child : children) {
 			child->dumpVlog(f, indent + "  ", inGenerate, type);
@@ -911,7 +911,7 @@ void AstNode::dumpVlog(FILE *f, std::string indent, bool inGenerate, AstNodeType
 	if (0) {
 		case AST_TCALL:
 		case AST_FCALL:
-			txt = id2vl(str);
+			txt = AstNode::id2vl(str);
 	}
 		fprintf(f, "%s%s(", indent.c_str(), txt.c_str());
 		for (auto child : children) {
@@ -944,7 +944,7 @@ void AstNode::dumpVlog(FILE *f, std::string indent, bool inGenerate, AstNodeType
 				range->dumpVlog(f, indent, inGenerate, type);
 			}
 		}
-		fprintf(f, " %s;\n", id2vl(str).c_str());
+		fprintf(f, " %s;\n", AstNode::id2vl(str).c_str());
 		for (auto child : children) {
 			if (first && type==AST_FUNCTION) //Skip first in functions
 				first = false;
@@ -955,7 +955,7 @@ void AstNode::dumpVlog(FILE *f, std::string indent, bool inGenerate, AstNodeType
 		break;
 
 	case AST_MODPORT:
-		fprintf(f, "%smodport %s (\n", indent.c_str(), id2vl(str).c_str());
+		fprintf(f, "%smodport %s (\n", indent.c_str(), AstNode::id2vl(str).c_str());
 		for (auto child : children) {
 			if (first)
 				first = false;
@@ -971,7 +971,7 @@ void AstNode::dumpVlog(FILE *f, std::string indent, bool inGenerate, AstNodeType
 		break;
 
 	case AST_PREFIX:
-		fprintf(f, "%s%s[", indent.c_str(), id2vl(str).c_str());
+		fprintf(f, "%s%s[", indent.c_str(), AstNode::id2vl(str).c_str());
 		children[0]->dumpVlog(f, "", inGenerate, type);
 		fprintf(f, "].");
 		children[1]->dumpVlog(f, "", inGenerate, type);
@@ -1002,11 +1002,127 @@ void AstNode::dumpVlog(FILE *f, std::string indent, bool inGenerate, AstNodeType
 	fflush(f);
 }
 
+
+    static bool isOrOrBool(AstNodeType type) {
+	return type==AST_REDUCE_BOOL || type==AST_REDUCE_OR;
+    }
+
+
+    bool escapedStringsEqual(std::string a, std::string b) {
+	   /* bool aStartWithBackslash = a[0]=='\\';
+	    bool bStartWithBackslash = b[0]=='\\';
+
+	    if (aStartWithBackslash == bStartWithBackslash) {
+		    return a==b;
+	    } else {
+		    if (a.empty() || b.empty())
+			    return false;
+		    if (aStartWithBackslash)
+			    return a.substr(1) == b;
+		    else
+			    return b.substr(1) == a;
+	    }*/
+	   return AstNode::id2vl(a) == AstNode::id2vl(b);
+    }
+
 // check if two AST nodes are identical
-bool AstNode::operator==(const AstNode &other) const
+    bool AstNode::logging_equals(const AstNode &other, bool orAndBoolEqual) const {
+	if (type != other.type) {
+	    if (!orAndBoolEqual || !isOrOrBool(type) || !isOrOrBool(other.type)) {
+		log("types not equal\n");
+		goto dump;
+	    }
+	}
+	if (children.size() != other.children.size()) {
+	    log("children size not equal\n");
+		goto dump;
+	}
+        if (!escapedStringsEqual(str, other.str)) {
+	    log("str not equal\n");
+		goto dump;
+	}
+	if (bits != other.bits) {
+	    log("bits not equal\n");
+		goto dump;
+	}
+	if (is_input != other.is_input) {
+	    log("is_input not equal\n");
+		goto dump;
+	}
+	if (is_output != other.is_output) {
+	    log("is_output not equal\n");
+		goto dump;
+	}
+	if (is_logic != other.is_logic) {
+	    log("is_logic not equal\n");
+		goto dump;
+	}
+	if (is_reg != other.is_reg) {
+	    log("is_reg not equal\n");
+		goto dump;
+	}
+	if (is_signed != other.is_signed) {
+	    log("is_signed not equal\n");
+		goto dump;
+	}
+	if (is_string != other.is_string) {
+	    log("is_string not equal\n");
+		goto dump;
+	}
+	if (range_valid != other.range_valid) {
+	    log("range_valid not equal\n");
+		goto dump;
+	}
+	if (range_swapped != other.range_swapped) {
+	    log("range_swapped not equal\n");
+		goto dump;
+	}
+	if (port_id != other.port_id) {
+	    log("port_id not equal\n");
+		goto dump;
+	}
+	if (range_left != other.range_left) {
+	    log("range_left not equal\n");
+		goto dump;
+	}
+	if (range_right != other.range_right) {
+	    log("range_right not equal\n");
+		goto dump;
+	}
+	if (integer != other.integer) {
+	    log("integer not equal\n");
+		goto dump;
+	}
+	for (size_t i = 0; i < children.size(); i++) {
+	    if (!children[i]->logging_equals(*other.children[i], orAndBoolEqual)) {
+	    	log("child %d not equal\n", i);
+	        goto dump;
+	    }
+	}
+	return true;
+
+	dump:
+	    log("A:\n");
+	    dumpAst(stdout);
+	    log("\nB:\n");
+	    other.dumpAst(stdout);
+	    log("\n");
+	    return false;
+    }
+
+
+// check if two AST nodes are identical
+bool AstNode::equals(const AstNode &other, bool orAndBoolEqual, bool id2AstMustEqual) const
 {
-	if (type != other.type)
-		return false;
+        if (type != other.type) {
+                if (!orAndBoolEqual || !isOrOrBool(type) || !isOrOrBool(other.type)) {
+                        return false;
+                }
+        }
+        if (id2AstMustEqual) {
+                if (id2ast != other.id2ast)
+                        return false;
+        }
 	if (children.size() != other.children.size())
 		return false;
 	if (str != other.str)
@@ -1038,9 +1154,15 @@ bool AstNode::operator==(const AstNode &other) const
 	if (integer != other.integer)
 		return false;
 	for (size_t i = 0; i < children.size(); i++)
-		if (*children[i] != *other.children[i])
+		if (!children[i]->equals(*other.children[i], orAndBoolEqual, id2AstMustEqual))
 			return false;
 	return true;
+}
+
+
+// check if two AST nodes are identical
+bool AstNode::operator==(const AstNode &other) const {
+        return equals(other);
 }
 
 // check if two AST nodes are not identical
@@ -1126,6 +1248,14 @@ AstNode *AstNode::mkconst_str(const std::string &str)
 	node->is_string = true;
 	node->str = str;
 	return node;
+}
+
+
+// create an AST node for an indentifier
+AstNode *AstNode::mkidentifier(const std::string & str) {
+        AstNode * node = new AstNode(AST_IDENTIFIER);
+        node -> str = str;
+        return node;
 }
 
 bool AstNode::bits_only_01() const
@@ -1275,6 +1405,136 @@ RTLIL::Const AstNode::realAsConst(int width)
 	return result;
 }
 
+
+static AST::AstNode * rereadDump(std::string filename) {
+	auto savedLexin = VERILOG_FRONTEND::lexin;
+	RTLIL::Design design;
+
+	std::map<std::string, std::string> defines_map;
+	std::list<std::string> include_dirs;
+	std::list<std::string> attributes;
+	/*
+	frontend_verilog_yydebug = false;
+	VERILOG_FRONTEND::sv_mode = false;
+	VERILOG_FRONTEND::formal_mode = false;
+	VERILOG_FRONTEND::norestrict_mode = false;
+	VERILOG_FRONTEND::assume_asserts_mode = false;
+	VERILOG_FRONTEND::lib_mode = false;
+	VERILOG_FRONTEND::default_nettype_wire = true;*/
+
+
+	AST::current_filename = filename;
+	AST::set_line_num = &frontend_verilog_yyset_lineno;
+	AST::get_line_num = &frontend_verilog_yyget_lineno;
+
+	VERILOG_FRONTEND::current_ast = new AST::AstNode(AST::AST_DESIGN);
+
+	std::ifstream f(filename.c_str());
+	VERILOG_FRONTEND::lexin = &f;
+	std::string code_after_preproc;
+
+	frontend_verilog_yyset_lineno(1);
+	frontend_verilog_yyrestart(NULL);
+	frontend_verilog_yyparse();
+	frontend_verilog_yylex_destroy();
+
+	for (auto &child : VERILOG_FRONTEND::current_ast->children) {
+		if (child->type == AST::AST_MODULE)
+			for (auto &attr : attributes)
+				if (child->attributes.count(attr) == 0)
+					child->attributes[attr] = AST::AstNode::mkconst_int(1, false);
+	}
+
+	AST::AstNode * resultFile = VERILOG_FRONTEND::current_ast;
+	VERILOG_FRONTEND::current_ast = NULL;
+	f.close();
+
+	VERILOG_FRONTEND::lexin = savedLexin;
+
+	//Only return the first module in the parsed file
+	if (resultFile->children.size()!=1)
+		log_error("Not one child\n");
+
+	AstNode * resultModule = resultFile->children[0];
+	resultFile->children.clear();
+	delete resultFile;
+
+	return resultModule;
+}
+
+
+static void logAbsPath(const std::string& fn) {
+	char  absFnBuf[PATH_MAX];
+	char * absFn = realpath(fn.c_str(), absFnBuf);
+	if (absFn)
+		log("%s",absFn);
+	else
+		log("%s",fn.c_str());
+}
+
+static void verify_dump_vlog(AstNode * ast) {
+	log("Verifying that rereading dumped verilog equals original ast for %s\n", AstNode::id2vl(ast->str).c_str());
+
+	std::string dumpPath = "/tmp/yosysVerifyDump";
+	mkdir(dumpPath.c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
+
+
+	char buffer[128];
+	snprintf(buffer, sizeof(buffer), "%u_%u", yosys_get_design()->hash(), getpid());
+
+	std::string dumpPrefix = dumpPath+"/"+AstNode::id2vl(ast->str)+"_"+buffer;
+
+	const std::string fnAst = dumpPrefix + ".ast";
+	FILE * fAst = fopen(fnAst.c_str(), "w+");
+	flag_no_dump_ptr = false;
+
+	ast->dumpAst(fAst, "");
+	fclose(fAst);
+
+	const std::string fn = dumpPrefix + ".v";
+
+	log("orig: ");
+	logAbsPath(ast->filename);
+	log("\nast: ");
+	logAbsPath(fnAst);
+	log("\nvlog: ");
+	logAbsPath(fn);
+	log("\n");
+
+	FILE * f = fopen(fn.c_str(), "w+");
+	flag_no_dump_ptr = true;
+	ast->dumpVlog(f, "");
+	fclose(f);
+
+
+
+
+
+	AST::AstNode *reread = rereadDump(fn);
+
+
+	if (!ast->equals(*reread, true)) {
+
+		ast->logging_equals(*reread, true);
+		log("not equal\n");
+
+		log("\n\n FULL original:\n");
+		ast->dumpAst(stdout,"", false);
+		log("\n\n FULL reread:\n");
+		reread->dumpAst(stdout,"", false);
+
+		log_file_error(ast->filename, ast->linenum, "AST for vlog dump does not equal original for %s", AstNode::id2vl(ast->str).c_str());
+	} else {
+		log("equal\n");
+	}
+
+	delete reread;
+
+	log("\n");
+
+
+}
+
 // create a new AstModule from an AST_MODULE AST node
 static AstModule* process_module(AstNode *ast, bool defer, AstNode *original_ast = NULL)
 {
@@ -1307,6 +1567,12 @@ static AstModule* process_module(AstNode *ast, bool defer, AstNode *original_ast
 		log("Dumping Verilog AST before simplification:\n");
 		ast->dumpVlog(NULL, "    ");
 		log("--- END OF VERILOG DUMP ---\n");
+	}
+
+	if (flag_verify_dump_vlog) {
+		AstNode * clone = ast->clone();
+		verify_dump_vlog(clone);
+		delete clone;
 	}
 
 	if (!defer)
@@ -1345,6 +1611,7 @@ static AstModule* process_module(AstNode *ast, bool defer, AstNode *original_ast
 		if (flag_nowb && ast->attributes.count("\\whitebox")) {
 			delete ast->attributes.at("\\whitebox");
 			ast->attributes.erase("\\whitebox");
+
 		}
 
 		if (ast->attributes.count("\\lib_whitebox")) {
@@ -1524,7 +1791,11 @@ void AST::process(RTLIL::Design *design, AstNode *ast, bool dump_ast1, bool dump
 			if (design->has((*it)->str)) {
 				RTLIL::Module *existing_mod = design->module((*it)->str);
 				if (!nooverwrite && !overwrite && !existing_mod->get_bool_attribute("\\blackbox")) {
-					log_file_error((*it)->filename, (*it)->linenum, "Re-definition of module `%s'!\n", (*it)->str.c_str());
+				        std::string moreinfo = "";
+				        if (AstModule * existing_astmod = dynamic_cast<AstModule*>(existing_mod)) {
+				                moreinfo = stringf(" (existing module is defined at %s:%d)", existing_astmod->ast->filename.c_str(), existing_astmod->ast->linenum);
+				        }
+					log_file_error((*it)->filename, (*it)->linenum, "Re-definition of module `%s'%s!\n", (*it)->str.c_str(), moreinfo.c_str());
 				} else if (nooverwrite) {
 					log("Ignoring re-definition of module `%s' at %s:%d.\n",
 							(*it)->str.c_str(), (*it)->filename.c_str(), (*it)->linenum);

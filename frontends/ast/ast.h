@@ -138,7 +138,7 @@ namespace AST
 		AST_GENCASE,
 		AST_GENBLOCK,
 		AST_TECALL,
-		
+
 		AST_POSEDGE,
 		AST_NEGEDGE,
 		AST_EDGE,
@@ -268,7 +268,11 @@ namespace AST
 		static AstNode *mkconst_str(const std::vector<RTLIL::State> &v);
 		static AstNode *mkconst_str(const std::string &str);
 
-		// helper function for creating sign-extended const objects
+                static AstNode *mkidentifier(const std::string &str);
+
+                static std::string id2vl(std::string txt, bool isInterfacePort = false);
+
+                // helper function for creating sign-extended const objects
 		RTLIL::Const bitsAsConst(int width, bool is_signed);
 		RTLIL::Const bitsAsConst(int width = -1);
 		RTLIL::Const bitsAsUnsizedConst(int width);
@@ -282,7 +286,11 @@ namespace AST
 		int isConst() const; // return '1' for AST_CONSTANT and '2' for AST_REALVALUE
 		double asReal(bool is_signed);
 		RTLIL::Const realAsConst(int width);
-	};
+
+                bool logging_equals(const AstNode &other, bool orAndBoolEqual = false) const;
+
+                bool equals(const AstNode &other, bool orAndBoolEqual = false, bool id2astMustEqual = false) const;
+        };
 
 	// process an AST tree (ast must point to an AST_DESIGN node) and generate RTLIL code
 	void process(RTLIL::Design *design, AstNode *ast, bool dump_ast1, bool dump_ast2, bool no_dump_ptr, bool dump_vlog1, bool dump_vlog2, bool dump_rtlil, bool nolatches, bool nomeminit,
@@ -322,14 +330,13 @@ namespace AST
 
     	void removeNestedBlock(AstNode*& node);
 
-        std::string id2vl(std::string txt);
 }
 
 namespace AST_INTERNAL
 {
 	// internal state variables
 	extern bool flag_dump_ast1, flag_dump_ast2, flag_no_dump_ptr, flag_dump_rtlil, flag_nolatches, flag_nomeminit;
-	extern bool flag_nomem2reg, flag_mem2reg, flag_lib, flag_noopt, flag_icells, flag_pwires, flag_autowire;
+	extern bool flag_nomem2reg, flag_mem2reg, flag_lib, flag_noopt, flag_icells, flag_pwires, flag_autowire, flag_verify_dump_vlog;
 	extern AST::AstNode *current_ast, *current_ast_mod;
 	extern std::map<std::string, AST::AstNode*> current_scope;
 	extern const dict<RTLIL::SigBit, RTLIL::SigBit> *genRTLIL_subst_ptr;
