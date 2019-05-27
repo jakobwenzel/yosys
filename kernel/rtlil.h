@@ -516,7 +516,7 @@ namespace RTLIL
 		pool<T> to_pool() const { return *this; }
 		std::vector<T> to_vector() const { return *this; }
 	};
-};
+}
 
 struct RTLIL::Const
 {
