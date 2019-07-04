@@ -321,6 +321,8 @@ namespace AST
 	void explode_interface_port(AstNode *module_ast, RTLIL::Module * intfmodule, std::string intfname, AstNode *modport);
 
     	void removeNestedBlock(AstNode*& node);
+
+        std::string id2vl(std::string txt);
 }
 
 namespace AST_INTERNAL

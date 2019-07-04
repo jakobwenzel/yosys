@@ -338,21 +338,22 @@ void AstNode::dumpAst(FILE *f, std::string indent, bool dumpFileLine) const
 	fflush(f);
 }
 
+namespace AST {
 // helper function for AstNode::dumpVlog()
-static std::string id2vl(std::string txt, bool isInterfacePort = false)
-{
-	if (txt.size() > 1 && txt[0] == '\\')
-		txt = txt.substr(1);
-	for (size_t i = 0; i < txt.size(); i++) {
-		if ('A' <= txt[i] && txt[i] <= 'Z') continue;
-		if ('a' <= txt[i] && txt[i] <= 'z') continue;
-		if ('0' <= txt[i] && txt[i] <= '9' && i>0) continue;
-		if (txt[i] == '_') continue;
-		if (txt[i] == '$') continue;
-		if (txt[i] == '.') continue;
-		return "\\" + txt + " ";
-	}
-	return txt;
+        std::string id2vl(std::string txt) {
+                if (txt.size() > 1 && txt[0] == '\\')
+                        txt = txt.substr(1);
+                for (size_t i = 0; i < txt.size(); i++) {
+                        if ('A' <= txt[i] && txt[i] <= 'Z') continue;
+                        if ('a' <= txt[i] && txt[i] <= 'z') continue;
+                        if ('0' <= txt[i] && txt[i] <= '9' && i > 0) continue;
+                        if (txt[i] == '_') continue;
+                        if (txt[i] == '$') continue;
+                        if (txt[i] == '.') continue;
+                        return "\\" + txt + " ";
+                }
+                return txt;
+        }
 }
 
 static bool needGenerate(AstNodeType type) {
@@ -955,7 +956,7 @@ void AstNode::dumpVlog(FILE *f, std::string indent, bool inGenerate, AstNodeType
 		break;
 
 	case AST_INTERFACEPORT:
-		fprintf(f, "%s%s %s;\n", indent.c_str(), id2vl(children[0]->str, true).c_str(), id2vl(str).c_str());
+		fprintf(f, "%s%s %s;\n", indent.c_str(), id2vl(children[0]->str).c_str(), id2vl(str).c_str());
 		break;
 
 	case AST_PREFIX:
