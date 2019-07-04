@@ -476,13 +476,16 @@ void AstNode::dumpVlog(FILE *f, std::string indent, bool inGenerate, AstNodeType
 			fprintf(f, "input ");
 		else if (is_output)
 			fprintf(f, "output ");
-		else if (!is_reg && !is_logic)
-			fprintf(f, "wire ");
+		/*else if (!is_reg && !is_logic)
+			fprintf(f, "wire ");*/
 
 		if (is_logic && !is_reg)
 			fprintf(f, "logic ");
-		if (is_reg)
+		else if (is_reg)
 			fprintf(f, "reg ");
+		else if (parentType != AST_FUNCTION && parentType!=AST_TASK)
+                        fprintf(f, "wire ");
+
 		if (is_signed)
 			fprintf(f, "signed ");
 		for (auto child : children) {
@@ -501,6 +504,11 @@ void AstNode::dumpVlog(FILE *f, std::string indent, bool inGenerate, AstNodeType
 			fprintf(f, "%s" "wire", indent.c_str());
 		if (is_signed)
 			fprintf(f, " signed");
+
+		if (children.empty()) {
+		        log_file_error(filename, linenum, "Memory has no children");
+	        }
+
 		for (auto child : children) {
 			fprintf(f, " ");
 			child->dumpVlog(f, "", inGenerate, type);
@@ -794,6 +802,9 @@ void AstNode::dumpVlog(FILE *f, std::string indent, bool inGenerate, AstNodeType
 		children[2]->dumpVlog(f, indent + "  ", inGenerate, type);
 		fprintf(f, "\n%s)\n", indent.c_str());
 	    	children[3]->dumpVlog(f, indent + "  ", inGenerate, type);
+	    	if (children[3]->type==AST_ASSIGN_EQ || children[3]->type==AST_ASSIGN_LE) {
+	    	        fprintf(f, ";\n");
+	    	}
 		break;
 
 	if (0) { case AST_WHILE: txt = "while"; }
@@ -831,7 +842,7 @@ void AstNode::dumpVlog(FILE *f, std::string indent, bool inGenerate, AstNodeType
 				if (first) {
 					first = false;
 				} else {
-					fprintf(f, ",\n  %s", indent.c_str());
+					fprintf(f, ",\n");
 				}
 				child->dumpVlog(f, indent + "  ", inGenerate, type);
 			}
@@ -973,6 +984,13 @@ void AstNode::dumpVlog(FILE *f, std::string indent, bool inGenerate, AstNodeType
 		children[1]->dumpVlog(f, "", inGenerate, type);
 		fprintf(f, ";\n");
 		break;
+
+        case AST_NONE:
+	        fprintf(f, "%s!!NONE!!(%s)", indent.c_str(), str.c_str());
+                for (auto child : children) {
+                        child->dumpVlog(f, "", inGenerate, type);
+                }
+	        break;
 
 
 	default:
