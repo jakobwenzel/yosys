@@ -787,7 +787,7 @@ struct ShowPass : public Pass {
 		}
 		extra_args(args, argidx, design);
 
-		if (format != "ps" && format != "dot") {
+		if (format != "ps" && format != "dot" && format != "ps2") {
 			int modcount = 0;
 			for (auto &mod_it : design->modules_) {
 				if (mod_it.second->get_blackbox_attribute())

@@ -1160,6 +1160,16 @@ bool AstNode::equals(const AstNode &other, bool orAndBoolEqual, bool id2AstMustE
 }
 
 
+bool AstNode::equals(const AstNode * a, const AstNode *b, bool orAndBoolEqual, bool id2AstMustEqual)
+{
+        if (a==nullptr)
+                return b==nullptr;
+        if (b==nullptr)
+                return false;
+        return a->equals(*b, orAndBoolEqual, id2AstMustEqual);
+}
+
+
 // check if two AST nodes are identical
 bool AstNode::operator==(const AstNode &other) const {
         return equals(other);
@@ -1405,51 +1415,60 @@ RTLIL::Const AstNode::realAsConst(int width)
 	return result;
 }
 
+namespace AST {
+        AST::AstNode *readFromStream(std::istream &stream, const std::string &filename) {
+                auto savedLexin = VERILOG_FRONTEND::lexin;
+                /*RTLIL::Design design;
+
+                std::map<std::string, std::string> defines_map;
+                std::list<std::string> include_dirs;
+                std::list<std::string> attributes;*/
+                /*
+                frontend_verilog_yydebug = false;
+                VERILOG_FRONTEND::sv_mode = false;
+                VERILOG_FRONTEND::formal_mode = false;
+                VERILOG_FRONTEND::norestrict_mode = false;
+                VERILOG_FRONTEND::assume_asserts_mode = false;
+                VERILOG_FRONTEND::lib_mode = false;
+                VERILOG_FRONTEND::default_nettype_wire = true;*/
+
+
+                AST::current_filename = filename;
+                AST::set_line_num = &frontend_verilog_yyset_lineno;
+                AST::get_line_num = &frontend_verilog_yyget_lineno;
+
+                VERILOG_FRONTEND::current_ast = new AST::AstNode(AST::AST_DESIGN);
+
+
+                VERILOG_FRONTEND::lexin = &stream;
+                std::string code_after_preproc;
+
+                frontend_verilog_yyset_lineno(1);
+                frontend_verilog_yyrestart(NULL);
+                frontend_verilog_yyparse();
+                frontend_verilog_yylex_destroy();
+
+                /*for (auto &child : VERILOG_FRONTEND::current_ast->children) {
+                        if (child->type == AST::AST_MODULE)
+                                for (auto &attr : attributes)
+                                        if (child->attributes.count(attr) == 0)
+                                                child->attributes[attr] = AST::AstNode::mkconst_int(1, false);
+                }*/
+
+                AST::AstNode *resultFile = VERILOG_FRONTEND::current_ast;
+                VERILOG_FRONTEND::current_ast = NULL;
+
+                VERILOG_FRONTEND::lexin = savedLexin;
+
+                return resultFile;
+
+        }
+}
 
 static AST::AstNode * rereadDump(std::string filename) {
-	auto savedLexin = VERILOG_FRONTEND::lexin;
-	RTLIL::Design design;
+        std::ifstream f(filename.c_str());
 
-	std::map<std::string, std::string> defines_map;
-	std::list<std::string> include_dirs;
-	std::list<std::string> attributes;
-	/*
-	frontend_verilog_yydebug = false;
-	VERILOG_FRONTEND::sv_mode = false;
-	VERILOG_FRONTEND::formal_mode = false;
-	VERILOG_FRONTEND::norestrict_mode = false;
-	VERILOG_FRONTEND::assume_asserts_mode = false;
-	VERILOG_FRONTEND::lib_mode = false;
-	VERILOG_FRONTEND::default_nettype_wire = true;*/
-
-
-	AST::current_filename = filename;
-	AST::set_line_num = &frontend_verilog_yyset_lineno;
-	AST::get_line_num = &frontend_verilog_yyget_lineno;
-
-	VERILOG_FRONTEND::current_ast = new AST::AstNode(AST::AST_DESIGN);
-
-	std::ifstream f(filename.c_str());
-	VERILOG_FRONTEND::lexin = &f;
-	std::string code_after_preproc;
-
-	frontend_verilog_yyset_lineno(1);
-	frontend_verilog_yyrestart(NULL);
-	frontend_verilog_yyparse();
-	frontend_verilog_yylex_destroy();
-
-	for (auto &child : VERILOG_FRONTEND::current_ast->children) {
-		if (child->type == AST::AST_MODULE)
-			for (auto &attr : attributes)
-				if (child->attributes.count(attr) == 0)
-					child->attributes[attr] = AST::AstNode::mkconst_int(1, false);
-	}
-
-	AST::AstNode * resultFile = VERILOG_FRONTEND::current_ast;
-	VERILOG_FRONTEND::current_ast = NULL;
-	f.close();
-
-	VERILOG_FRONTEND::lexin = savedLexin;
+        auto resultFile = readFromStream(f, filename);
 
 	//Only return the first module in the parsed file
 	if (resultFile->children.size()!=1)

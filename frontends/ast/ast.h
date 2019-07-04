@@ -290,6 +290,8 @@ namespace AST
                 bool logging_equals(const AstNode &other, bool orAndBoolEqual = false) const;
 
                 bool equals(const AstNode &other, bool orAndBoolEqual = false, bool id2astMustEqual = false) const;
+
+                static bool equals(const AstNode * a, const AstNode *b, bool orAndBoolEqual = false, bool id2astMustEqual = false);
         };
 
 	// process an AST tree (ast must point to an AST_DESIGN node) and generate RTLIL code
@@ -330,6 +332,7 @@ namespace AST
 
     	void removeNestedBlock(AstNode*& node);
 
+    	AST::AstNode *readFromStream(std::istream &stream, const std::string &filename);
 }
 
 namespace AST_INTERNAL
