@@ -270,7 +270,6 @@ namespace AST
 
                 static AstNode *mkidentifier(const std::string &str);
 
-                static std::string id2vl(std::string txt, bool isInterfacePort = false);
 
                 // helper function for creating sign-extended const objects
 		RTLIL::Const bitsAsConst(int width, bool is_signed);
@@ -333,6 +332,7 @@ namespace AST
     	void removeNestedBlock(AstNode*& node);
 
     	AST::AstNode *readFromStream(std::istream &stream, const std::string &filename);
+        std::string id2vl(std::string txt);
 }
 
 namespace AST_INTERNAL
