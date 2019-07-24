@@ -395,7 +395,7 @@ void AstNode::dumpVlog(FILE *f, std::string indent, bool inGenerate, AstNodeType
 	}
 
 	for (auto &it : attributes) {
-		fprintf(f, "%s" "(* %s = ", indent.c_str(), AstNode::id2vl(it.first.str()).c_str());
+		fprintf(f, "%s" "(* %s = ", indent.c_str(), id2vl(it.first.str()).c_str());
 		it.second->dumpVlog(f, "", inGenerate, type);
 		fprintf(f, " *)%s", indent.empty() ? "" : "\n");
 	}
@@ -413,7 +413,7 @@ void AstNode::dumpVlog(FILE *f, std::string indent, bool inGenerate, AstNodeType
 	if (0) { case AST_INTERFACE: txt = "interface"; }
 	if (0) { case AST_MODULE: txt = "module"; }
 		{
-		fprintf(f, "%s" "%s %s(", txt.c_str(), indent.c_str(), AstNode::id2vl(str).c_str());
+		fprintf(f, "%s" "%s %s(", txt.c_str(), indent.c_str(), id2vl(str).c_str());
 
 		std::vector<AstNode *> portChildren;
 
@@ -431,7 +431,7 @@ void AstNode::dumpVlog(FILE *f, std::string indent, bool inGenerate, AstNodeType
 		});
 
 		for(auto child : portChildren) {
-				fprintf(f, "%s%s", first ? "" : ", ", AstNode::id2vl(child->str).c_str());
+				fprintf(f, "%s%s", first ? "" : ", ", id2vl(child->str).c_str());
 				first = false;
 			}
 		fprintf(f, ");\n");
@@ -492,7 +492,7 @@ void AstNode::dumpVlog(FILE *f, std::string indent, bool inGenerate, AstNodeType
 			child->dumpVlog(f, "", inGenerate, type);
 			fprintf(f, " ");
 		}
-		fprintf(f, "%s%s", AstNode::id2vl(str).c_str(), (type==AST_WIRE && parentType != AST_NONE) ? ";\n" : "");
+		fprintf(f, "%s%s", id2vl(str).c_str(), (type==AST_WIRE && parentType != AST_NONE) ? ";\n" : "");
 		break;
 
 	case AST_MEMORY:
@@ -513,7 +513,7 @@ void AstNode::dumpVlog(FILE *f, std::string indent, bool inGenerate, AstNodeType
 			fprintf(f, " ");
 			child->dumpVlog(f, "", inGenerate, type);
 			if (first)
-				fprintf(f, " %s", AstNode::id2vl(str).c_str());
+				fprintf(f, " %s", id2vl(str).c_str());
 			first = false;
 		}
 		fprintf(f, ";\n");
@@ -577,7 +577,7 @@ void AstNode::dumpVlog(FILE *f, std::string indent, bool inGenerate, AstNodeType
 		break;
 
 	case AST_IDENTIFIER:
-		fprintf(f, "%s", AstNode::id2vl(str).c_str());
+		fprintf(f, "%s", id2vl(str).c_str());
 		for (auto child : children)
 			child->dumpVlog(f, "", inGenerate, type);
 		break;
@@ -620,7 +620,7 @@ void AstNode::dumpVlog(FILE *f, std::string indent, bool inGenerate, AstNodeType
 		} else*/ {
 			fprintf(f, "%s" "begin", indent.c_str());
 			if (!str.empty()) {
-				fprintf(f, ": %s", AstNode::id2vl(str).c_str());
+				fprintf(f, ": %s", id2vl(str).c_str());
 			}
 			fprintf(f, "\n");
 			for (auto child : children)
@@ -779,14 +779,14 @@ void AstNode::dumpVlog(FILE *f, std::string indent, bool inGenerate, AstNodeType
 				fprintf(f, " real");
 			}
 		}
-		fprintf(f, " %s = ", AstNode::id2vl(str).c_str());
+		fprintf(f, " %s = ", id2vl(str).c_str());
 		children[0]->dumpVlog(f, "", inGenerate, type);
 		fprintf(f, ";\n");
 		break;
 
 
 	case AST_GENVAR:
-		fprintf(f, "%sgenvar %s;\n", indent.c_str(), AstNode::id2vl(str).c_str());
+		fprintf(f, "%sgenvar %s;\n", indent.c_str(), id2vl(str).c_str());
 		break;
 
 	case AST_GENFOR:
@@ -833,7 +833,7 @@ void AstNode::dumpVlog(FILE *f, std::string indent, bool inGenerate, AstNodeType
 	if (0) { case AST_CELLARRAY: node = children[1]; }
 	if (0) { case AST_CELL: node = this; }
 	{
-		std::string celltype = AstNode::id2vl(node->children[0]->str);
+		std::string celltype = id2vl(node->children[0]->str);
 		fprintf(f, "%s%s #(\n", indent.c_str(), celltype.c_str());
 
 		first = true;
@@ -848,7 +848,7 @@ void AstNode::dumpVlog(FILE *f, std::string indent, bool inGenerate, AstNodeType
 			}
 		}
 
-		fprintf(f, "\n%s) %s ", indent.c_str(), AstNode::id2vl(node->str).c_str());
+		fprintf(f, "\n%s) %s ", indent.c_str(), id2vl(node->str).c_str());
 
 		if (type==AST_CELLARRAY) {
 			children[0]->dumpVlog(f, "", inGenerate, type);
@@ -894,7 +894,7 @@ void AstNode::dumpVlog(FILE *f, std::string indent, bool inGenerate, AstNodeType
 	case AST_PARASET: {
 		fprintf(f, indent.c_str());
 		if (!str.empty()) {
-			fprintf(f,".%s(", AstNode::id2vl(str).c_str());
+			fprintf(f,".%s(", id2vl(str).c_str());
 		}
 		for (auto child : children) {
 			child->dumpVlog(f, indent + "  ", inGenerate, type);
@@ -911,7 +911,7 @@ void AstNode::dumpVlog(FILE *f, std::string indent, bool inGenerate, AstNodeType
 	if (0) {
 		case AST_TCALL:
 		case AST_FCALL:
-			txt = AstNode::id2vl(str);
+			txt = id2vl(str);
 	}
 		fprintf(f, "%s%s(", indent.c_str(), txt.c_str());
 		for (auto child : children) {
@@ -944,7 +944,7 @@ void AstNode::dumpVlog(FILE *f, std::string indent, bool inGenerate, AstNodeType
 				range->dumpVlog(f, indent, inGenerate, type);
 			}
 		}
-		fprintf(f, " %s;\n", AstNode::id2vl(str).c_str());
+		fprintf(f, " %s;\n", id2vl(str).c_str());
 		for (auto child : children) {
 			if (first && type==AST_FUNCTION) //Skip first in functions
 				first = false;
@@ -955,7 +955,7 @@ void AstNode::dumpVlog(FILE *f, std::string indent, bool inGenerate, AstNodeType
 		break;
 
 	case AST_MODPORT:
-		fprintf(f, "%smodport %s (\n", indent.c_str(), AstNode::id2vl(str).c_str());
+		fprintf(f, "%smodport %s (\n", indent.c_str(), id2vl(str).c_str());
 		for (auto child : children) {
 			if (first)
 				first = false;
@@ -971,7 +971,7 @@ void AstNode::dumpVlog(FILE *f, std::string indent, bool inGenerate, AstNodeType
 		break;
 
 	case AST_PREFIX:
-		fprintf(f, "%s%s[", indent.c_str(), AstNode::id2vl(str).c_str());
+		fprintf(f, "%s%s[", indent.c_str(), id2vl(str).c_str());
 		children[0]->dumpVlog(f, "", inGenerate, type);
 		fprintf(f, "].");
 		children[1]->dumpVlog(f, "", inGenerate, type);
@@ -1022,7 +1022,7 @@ void AstNode::dumpVlog(FILE *f, std::string indent, bool inGenerate, AstNodeType
 		    else
 			    return b.substr(1) == a;
 	    }*/
-	   return AstNode::id2vl(a) == AstNode::id2vl(b);
+	   return id2vl(a) == id2vl(b);
     }
 
 // check if two AST nodes are identical
@@ -1492,7 +1492,7 @@ static void logAbsPath(const std::string& fn) {
 }
 
 static void verify_dump_vlog(AstNode * ast) {
-	log("Verifying that rereading dumped verilog equals original ast for %s\n", AstNode::id2vl(ast->str).c_str());
+	log("Verifying that rereading dumped verilog equals original ast for %s\n", id2vl(ast->str).c_str());
 
 	std::string dumpPath = "/tmp/yosysVerifyDump";
 	mkdir(dumpPath.c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
@@ -1501,7 +1501,7 @@ static void verify_dump_vlog(AstNode * ast) {
 	char buffer[128];
 	snprintf(buffer, sizeof(buffer), "%u_%u", yosys_get_design()->hash(), getpid());
 
-	std::string dumpPrefix = dumpPath+"/"+AstNode::id2vl(ast->str)+"_"+buffer;
+	std::string dumpPrefix = dumpPath+"/"+id2vl(ast->str)+"_"+buffer;
 
 	const std::string fnAst = dumpPrefix + ".ast";
 	FILE * fAst = fopen(fnAst.c_str(), "w+");
@@ -1542,7 +1542,7 @@ static void verify_dump_vlog(AstNode * ast) {
 		log("\n\n FULL reread:\n");
 		reread->dumpAst(stdout,"", false);
 
-		log_file_error(ast->filename, ast->linenum, "AST for vlog dump does not equal original for %s", AstNode::id2vl(ast->str).c_str());
+		log_file_error(ast->filename, ast->linenum, "AST for vlog dump does not equal original for %s", id2vl(ast->str).c_str());
 	} else {
 		log("equal\n");
 	}
