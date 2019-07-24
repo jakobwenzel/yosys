@@ -2181,7 +2181,7 @@ std::string AstModule::derive_common(RTLIL::Design *design, dict<RTLIL::IdString
 	return modname;
 }
 
-RTLIL::Module *AstModule::clone() const
+AstModule *AstModule::clone() const
 {
 	AstModule *new_mod = new AstModule;
 	new_mod->name = name;

@@ -307,7 +307,7 @@ namespace AST
 		RTLIL::IdString derive(RTLIL::Design *design, dict<RTLIL::IdString, RTLIL::Const> parameters, dict<RTLIL::IdString, RTLIL::Module*> interfaces, dict<RTLIL::IdString, RTLIL::IdString> modports, bool mayfail) YS_OVERRIDE;
 		std::string derive_common(RTLIL::Design *design, dict<RTLIL::IdString, RTLIL::Const> parameters, AstNode **new_ast_out, bool mayfail);
 		void reprocess_module(RTLIL::Design *design, dict<RTLIL::IdString, RTLIL::Module *> local_interfaces) YS_OVERRIDE;
-		RTLIL::Module *clone() const YS_OVERRIDE;
+		AstModule *clone() const YS_OVERRIDE;
 	};
 
 	// this must be set by the language frontend before parsing the sources
