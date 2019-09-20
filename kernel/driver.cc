@@ -129,6 +129,7 @@ void run(const char *command)
 		log_last_error = "Internal error (see JavaScript console for details)";
 		run_pass(command);
 		log_last_error = "";
+		log_last_prefix = "";
 	} catch (...) {
 		while (GetSize(yosys_get_design()->selection_stack) > selSize)
 			yosys_get_design()->selection_stack.pop_back();

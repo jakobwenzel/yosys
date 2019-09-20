@@ -308,6 +308,9 @@ namespace AST
 		std::string derive_common(RTLIL::Design *design, dict<RTLIL::IdString, RTLIL::Const> parameters, AstNode **new_ast_out, bool mayfail);
 		void reprocess_module(RTLIL::Design *design, dict<RTLIL::IdString, RTLIL::Module *> local_interfaces) YS_OVERRIDE;
 		AstModule *clone() const YS_OVERRIDE;
+
+		int calc_top_mod_score_worker(dict<Module *, int> &db, AstNode * node);
+		int calc_top_mod_score(dict<Module *, int> &db) YS_OVERRIDE;
 	};
 
 	// this must be set by the language frontend before parsing the sources

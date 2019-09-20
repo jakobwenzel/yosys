@@ -54,6 +54,7 @@ bool log_cmd_error_throw = false;
 bool log_quiet_warnings = false;
 int log_verbose_level;
 string log_last_error;
+string log_last_prefix;
 void (*log_error_atexit)() = NULL;
 
 int log_make_debug = 0;
@@ -320,6 +321,7 @@ static void logv_error_with_prefix(const char *prefix,
 				f = stderr;
 
 	log_last_error = vstringf(format, ap);
+	log_last_prefix = prefix;
 	log("%s%s", prefix, log_last_error.c_str());
 	log_flush();
 

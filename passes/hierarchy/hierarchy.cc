@@ -140,23 +140,6 @@ void generate(RTLIL::Design *design, const std::vector<std::string> &celltypes, 
 	}
 }
 
-// Return the "basic" type for an array item.
-std::string basic_cell_type(const std::string celltype, int pos[3] = nullptr) {
-	std::string basicType = celltype;
-	if (celltype.compare(0, strlen("$array:"), "$array:") == 0) {
-		int pos_idx = celltype.find_first_of(':');
-		int pos_num = celltype.find_first_of(':', pos_idx + 1);
-		int pos_type = celltype.find_first_of(':', pos_num + 1);
-		basicType = celltype.substr(pos_type + 1);
-		if (pos != nullptr) {
-			pos[0] = pos_idx;
-			pos[1] = pos_num;
-			pos[2] = pos_type;
-		}
-	}
-	return basicType;
-}
-
 bool expand_module(RTLIL::Design *design, RTLIL::Module *module, bool flag_check, bool flag_simcheck, std::vector<std::string> &libdirs)
 {
 	bool did_something = false;
@@ -196,7 +179,7 @@ bool expand_module(RTLIL::Design *design, RTLIL::Module *module, bool flag_check
 
 		if (cell->type.begins_with("$array:")) {
 			int pos[3];
-			basic_cell_type(cell->type.str(), pos);
+			Module::basic_cell_type(cell->type.str(), pos);
 			int pos_idx = pos[0];
 			int pos_num = pos[1];
 			int pos_type = pos[2];
@@ -458,7 +441,7 @@ void hierarchy_worker(RTLIL::Design *design, std::set<RTLIL::Module*, IdString::
 	for (auto cell : mod->cells()) {
 		std::string celltype = cell->type.str();
 		if (celltype.compare(0, strlen("$array:"), "$array:") == 0)
-			celltype = basic_cell_type(celltype);
+			celltype = Module::basic_cell_type(celltype);
 		if (design->module(celltype))
 			hierarchy_worker(design, used, design->module(celltype), indent+4);
 	}
@@ -510,28 +493,6 @@ bool set_keep_assert(std::map<RTLIL::Module*, bool> &cache, RTLIL::Module *mod)
 				return cache[mod] = true;
 		}
 	return cache[mod];
-}
-
-int find_top_mod_score(Design *design, Module *module, dict<Module*, int> &db)
-{
-	if (db.count(module) == 0) {
-		int score = 0;
-		db[module] = 0;
-		for (auto cell : module->cells()) {
-			std::string celltype = cell->type.str();
-			// Is this an array instance
-			if (celltype.compare(0, strlen("$array:"), "$array:") == 0)
-				celltype = basic_cell_type(celltype);
-			// Is this cell a module instance?
-			auto instModule = design->module(celltype);
-			// If there is no instance for this, issue a warning.
-			if (instModule != nullptr) {
-				score = max(score, find_top_mod_score(design, instModule, db) + 1);
-			}
-		}
-		db[module] = score;
-	}
-	return db.at(module);
 }
 
 RTLIL::Module *check_if_top_has_changed(Design *design, Module *top_mod)
@@ -812,13 +773,18 @@ struct HierarchyPass : public Pass {
 			log_header(design, "Finding top of design hierarchy..\n");
 			dict<Module*, int> db;
 			for (Module *mod : design->selected_modules()) {
-				int score = find_top_mod_score(design, mod, db);
+				int score = mod->find_top_mod_score(db);
 				log("root of %3d design levels: %-20s\n", score, log_id(mod));
 				if (!top_mod || score > db[top_mod])
 					top_mod = mod;
 			}
-			if (top_mod != nullptr)
+			if (top_mod != nullptr) {
+				if (top_mod->name.substr(0, 9) == "$abstract") {
+					top_mod = design->module(top_mod->derive(design, {}));
+				}
+
 				log("Automatically selected %s as design top module.\n", log_id(top_mod));
+			}
 		}
 
 		if (flag_simcheck && top_mod == nullptr)

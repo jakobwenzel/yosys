@@ -234,7 +234,7 @@ struct AST_INTERNAL::ProcessGenerator
 
 		if (found_anyedge_syncs) {
 			if (found_global_syncs)
-				log_file_error(always->filename, always->linenum, "Found non-synthesizable event list!\n");
+				log_file_error(always->filename, always->linenum, "Found non-synthesizable event list! a\n");
 			log("Note: Assuming pure combinatorial block at %s:%d in\n", always->filename.c_str(), always->linenum);
 			log("compliance with IEC 62142(E):2005 / IEEE Std. 1364.1(E):2002. Recommending\n");
 			log("use of @* instead of @(...) for better match of synthesis and simulation.\n");
@@ -249,7 +249,7 @@ struct AST_INTERNAL::ProcessGenerator
 					continue;
 				found_clocked_sync = true;
 				if (found_global_syncs || found_anyedge_syncs)
-					log_file_error(always->filename, always->linenum, "Found non-synthesizable event list!\n");
+					log_file_error(always->filename, always->linenum, "Found non-synthesizable event list! b\n");
 				RTLIL::SyncRule *syncrule = new RTLIL::SyncRule;
 				syncrule->type = child->type == AST_POSEDGE ? RTLIL::STp : RTLIL::STn;
 				syncrule->signal = child->children[0]->genRTLIL();

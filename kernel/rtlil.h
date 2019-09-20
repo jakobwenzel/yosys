@@ -375,7 +375,7 @@ namespace RTLIL
 		extern IdString keep;
 		extern IdString whitebox;
 		extern IdString blackbox;
-	};
+	}
 
 	static inline std::string escape_id(std::string str) {
 		if (str.size() > 0 && str[0] != '\\' && str[0] != '$')
@@ -1045,6 +1045,8 @@ protected:
 	void add(RTLIL::Wire *wire);
 	void add(RTLIL::Cell *cell);
 
+	int find_top_mod_score_by_celltype(dict<Module*, int> &db, std::string celltype);
+	virtual int calc_top_mod_score(dict<Module*, int> &db);
 public:
 	RTLIL::Design *design;
 	pool<RTLIL::Monitor*> monitors;
@@ -1067,6 +1069,12 @@ public:
 	virtual RTLIL::IdString derive(RTLIL::Design *design, dict<RTLIL::IdString, RTLIL::Const> parameters, dict<RTLIL::IdString, RTLIL::Module*> interfaces, dict<RTLIL::IdString, RTLIL::IdString> modports, bool mayfail = false);
 	virtual size_t count_id(RTLIL::IdString id);
 	virtual void reprocess_module(RTLIL::Design *design, dict<RTLIL::IdString, RTLIL::Module *> local_interfaces);
+
+	// Return the "basic" type for an array item.
+	static std::string basic_cell_type(const std::string celltype, int pos[3] = nullptr);
+
+	int find_top_mod_score(dict<Module*, int> &db);
+
 
 	virtual void sort();
 	virtual void check();

@@ -114,7 +114,11 @@ public:
 	int numLiterals() const { return literals.size(); }
 	int numExpressions() const { return expressions.size(); }
 
-	int eval(int id, const std::vector<int> &values) const;
+	bool evalX(int id, const std::vector<int> &modelExpressions, const std::vector<bool> &values, std::map<int, bool> &cache) const;
+	bool evalXCalc(int id, const std::vector<int> &modelExpressions, const std::vector<bool> &values, std::map<int, bool> &cache) const;
+	std::vector<bool> vec_eval(const std::vector<int> &id, const std::vector<int> &modelExpressions, const std::vector<bool> &values, std::map<int, bool> &cache) const;
+	//bool evalX(int id, const std::vector<int> &modelExpressions, const std::vector<bool> &values) const;
+	std::vector<bool> vec_eval(const std::vector<int> &id, const std::vector<int> &modelExpressions, const std::vector<bool> &values) const;
 
 	// SAT solver interface
 	// If you are planning on using the solver API (and not simply create a CNF) you must use a child class
@@ -245,6 +249,8 @@ public:
 	std::vector<int> vec_ite(int sel, const std::vector<int> &vec1, const std::vector<int> &vec2);
 
 	std::vector<int> vec_count(const std::vector<int> &vec, int numBits, bool clip = true);
+	std::vector<int> vec_add(const std::vector<int> &vec1, const std::vector<int> &vec2, int carry_in, int & carry_out);
+	std::vector<int> vec_add_with_carryout(const std::vector<int> &vec1, const std::vector<int> &vec2);
 	std::vector<int> vec_add(const std::vector<int> &vec1, const std::vector<int> &vec2);
 	std::vector<int> vec_sub(const std::vector<int> &vec1, const std::vector<int> &vec2);
 	std::vector<int> vec_neg(const std::vector<int> &vec);

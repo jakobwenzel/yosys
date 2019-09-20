@@ -61,6 +61,7 @@ extern bool log_error_stderr;
 extern bool log_cmd_error_throw;
 extern bool log_quiet_warnings;
 extern int log_verbose_level;
+extern string log_last_prefix;
 extern string log_last_error;
 extern void (*log_error_atexit)();
 

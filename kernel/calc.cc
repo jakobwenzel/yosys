@@ -36,7 +36,11 @@ static void extend_u0(RTLIL::Const &arg, int width, bool is_signed)
 	while (int(arg.bits.size()) < width)
 		arg.bits.push_back(padding);
 
-	arg.bits.resize(width);
+	if (width!=-1)
+		arg.bits.resize(width);
+	else {
+		log_error("extend_u0 with -1 as arg!"); //TODO why did I insert this check?? remove???
+	}
 }
 
 static BigInteger const2big(const RTLIL::Const &val, bool as_signed, int &undef_bit_pos)

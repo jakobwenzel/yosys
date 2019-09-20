@@ -2443,7 +2443,6 @@ module MMCME2_ADV (...);
     parameter STARTUP_WAIT = "FALSE";
     parameter real VCOCLK_FREQ_MAX = 1600.000;
     parameter real VCOCLK_FREQ_MIN = 600.000;
-    parameter STARTUP_WAIT = "FALSE";
     output CLKFBOUT;
     output CLKFBOUTB;
     output CLKFBSTOPPED;

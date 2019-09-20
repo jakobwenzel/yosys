@@ -328,9 +328,12 @@ struct SetundefPass : public Pass {
 					for (auto &it : module->wires_)
 						undriven_signals.add(sigmap(it.second));
 
+					log("undriven 1: %d\n", undriven_signals.size());
+
 					for (auto &it : module->wires_)
 						if (it.second->port_input)
 							undriven_signals.del(sigmap(it.second));
+					log("undriven 2: %d\n", undriven_signals.size());
 
 					CellTypes ct(design);
 					for (auto &it : module->cells_)
@@ -338,6 +341,7 @@ struct SetundefPass : public Pass {
 						if (!ct.cell_known(it.second->type) || ct.cell_output(it.second->type, conn.first))
 							undriven_signals.del(sigmap(conn.second));
 
+					log("undriven 3: %d\n", undriven_signals.size());
 					RTLIL::SigSpec sig = undriven_signals.export_all();
 					for (auto &c : sig.chunks()) {
 						RTLIL::SigSpec bits;
@@ -348,6 +352,7 @@ struct SetundefPass : public Pass {
 						else
 							for (int i = 0; i < c.width; i++)
 								bits.append(worker.next_bit());
+						log("connecting chunk %s\n", c.wire->name.c_str());
 						module->connect(RTLIL::SigSig(c, bits));
 					}
 				}

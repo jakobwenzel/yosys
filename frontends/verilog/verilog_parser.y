@@ -259,7 +259,7 @@ attr_assign:
 	hierarchical_id {
 		if (attr_list->count(*$1) != 0)
 			delete (*attr_list)[*$1];
-		(*attr_list)[*$1] = AstNode::mkconst_int(1, false);
+		(*attr_list)[*$1] = AstNode::mkconst_int(1, true);
 		delete $1;
 	} |
 	hierarchical_id '=' expr {

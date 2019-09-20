@@ -741,6 +741,66 @@ void RTLIL::Module::reprocess_module(RTLIL::Design *, dict<RTLIL::IdString, RTLI
 	log_error("Cannot reprocess_module module `%s' !\n", id2cstr(name));
 }
 
+
+// Return the "basic" type for an array item.
+std::string RTLIL::Module::basic_cell_type(const std::string celltype, int pos[3])
+{
+	std::string basicType = celltype;
+	if (celltype.compare(0, strlen("$array:"), "$array:") == 0) {
+		int pos_idx = celltype.find_first_of(':');
+		int pos_num = celltype.find_first_of(':', pos_idx + 1);
+		int pos_type = celltype.find_first_of(':', pos_num + 1);
+		basicType = celltype.substr(pos_type + 1);
+		if (pos != nullptr) {
+			pos[0] = pos_idx;
+			pos[1] = pos_num;
+			pos[2] = pos_type;
+		}
+	}
+	return basicType;
+}
+
+
+int RTLIL::Module::find_top_mod_score_by_celltype(dict<Module*, int> &db, std::string celltype)
+{
+	// Is this an array instance
+	if (celltype.compare(0, strlen("$array:"), "$array:") == 0)
+		celltype = basic_cell_type(celltype);
+	// Is this cell a module instance?
+	auto instModule = design->module(celltype);
+	if (instModule != nullptr) {
+		return instModule->find_top_mod_score(db) + 1;
+	} else {
+		instModule = design->module("$abstract" + celltype);
+		if (instModule != nullptr) {
+			return instModule->find_top_mod_score(db) + 1;
+		}
+		return 1;
+	}
+}
+
+int RTLIL::Module::calc_top_mod_score(dict<Module*, int> &db)
+{
+	int score = 0;
+
+	for (auto cell : cells()) {
+		std::string celltype = cell->type.str();
+		score = max(score, find_top_mod_score_by_celltype(db, celltype));
+	}
+	return score;
+}
+int RTLIL::Module::find_top_mod_score(dict<Module*, int> &db)
+{
+	if (db.count(this) == 0) {
+		db[this] = 0;
+
+		int score = calc_top_mod_score(db);
+
+		db[this] = score;
+	}
+	return db.at(this);
+}
+
 RTLIL::IdString RTLIL::Module::derive(RTLIL::Design*, dict<RTLIL::IdString, RTLIL::Const>, bool mayfail)
 {
 	if (mayfail)

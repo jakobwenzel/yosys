@@ -309,82 +309,120 @@ std::string ezSAT::to_string(int id) const
 	return text;
 }
 
-int ezSAT::eval(int id, const std::vector<int> &values) const
+namespace Yosys {
+	void log(const char *format, ...);
+}
+
+bool ezSAT::evalXCalc(int id, const std::vector<int> &modelExpressions, const std::vector<bool> &values, std::map<int, bool> &cache) const
 {
 	if (id > 0) {
-		if (id <= int(values.size()) && (values[id-1] == CONST_TRUE || values[id-1] == CONST_FALSE || values[id-1] == 0))
+		if (id == 1)
+			return true;
+		if (id == 2)
+			return false;
+		//std::map<int, bool> modelMap;
+		assert(modelExpressions.size() == values.size());
+		for (int i = 0; i < int(modelExpressions.size()); i++) {
+			if (modelExpressions[i] == id)
+				return values[i];
+		}
+		for (int i = 0; i < int(modelExpressions.size()); i++) {
+			Yosys::log("modelExpressions[%d]=%d, values[%d]=%d\n", i, modelExpressions[i], i, values[i]?1:0);
+		}
+			//modelMap[modelExpressions[i]] = values[i];
+
+		/*if (id <= int(values.size()) / *&& (values[id-1] == CONST_TRUE || values[id-1] == CONST_FALSE || values[id-1] == 0)* /)
 			return values[id-1];
-		return 0;
+		//return 0;
+		throw std::exception();*/
+		// return modelMap.at(id);
+
+		Yosys::log("did not find id %d in expressions\n", id);
+		throw std::exception();
 	}
 
 	OpId op;
 	const std::vector<int> &args = lookup_expression(id, op);
-	int a, b;
+	bool a, b;
 
 	switch (op)
 	{
 	case OpNot:
 		assert(args.size() == 1);
-		a = eval(args[0], values);
-		if (a == CONST_TRUE)
-			return CONST_FALSE;
-		if (a == CONST_FALSE)
-			return CONST_TRUE;
-		return 0;
+		a = evalX(args[0], modelExpressions, values, cache);
+		return !a;
 	case OpAnd:
-		a = CONST_TRUE;
 		for (auto arg : args) {
-			b = eval(arg, values);
-			if (b != CONST_TRUE && b != CONST_FALSE)
-				a = 0;
-			if (b == CONST_FALSE)
-				return CONST_FALSE;
+			b = evalX(arg, modelExpressions, values, cache);
+			if (!b)
+				return false;
 		}
-		return a;
+		return true;
 	case OpOr:
-		a = CONST_FALSE;
 		for (auto arg : args) {
-			b = eval(arg, values);
-			if (b != CONST_TRUE && b != CONST_FALSE)
-				a = 0;
-			if (b == CONST_TRUE)
-				return CONST_TRUE;
+			b = evalX(arg, modelExpressions, values, cache);
+			if (b)
+				return true;
 		}
-		return a;
+		return false;
 	case OpXor:
-		a = CONST_FALSE;
+		a = false;
 		for (auto arg : args) {
-			b = eval(arg, values);
-			if (b != CONST_TRUE && b != CONST_FALSE)
-				return 0;
-			if (b == CONST_TRUE)
-				a = a == CONST_TRUE ? CONST_FALSE : CONST_TRUE;
+			b = evalX(arg, modelExpressions, values, cache);
+			if (b)
+				a = !a;
 		}
 		return a;
 	case OpIFF:
 		assert(args.size() > 0);
-		a = eval(args[0], values);
+		a = evalX(args[0], modelExpressions, values, cache);
 		for (auto arg : args) {
-			b = eval(arg, values);
-			if (b != CONST_TRUE && b != CONST_FALSE)
-				return 0;
+			b = evalX(arg, modelExpressions, values, cache);
 			if (b != a)
-				return CONST_FALSE;
+				return false;
 		}
-		return CONST_TRUE;
+		return true;
 	case OpITE:
 		assert(args.size() == 3);
-		a = eval(args[0], values);
-		if (a == CONST_TRUE)
-			return eval(args[1], values);
-		if (a == CONST_FALSE)
-			return eval(args[2], values);
-		return 0;
+		a = evalX(args[0], modelExpressions, values, cache);
+		if (a)
+			return evalX(args[1], modelExpressions, values, cache);
+		else
+			return evalX(args[2], modelExpressions, values, cache);
 	default:
 		abort();
 	}
 }
 
+bool ezSAT::evalX(int id, const std::vector<int> &modelExpressions, const std::vector<bool> &values, std::map<int, bool> &cache) const
+{
+	auto it = cache.find(id);
+	if (it == cache.end()) {
+		bool val = evalXCalc(id, modelExpressions, values, cache);
+		cache.emplace(id, val);
+		return val;
+	}
+	return it->second;
+}
+/*
+bool ezSAT::evalX(int id, const std::vector<int> &modelExpressions, const std::vector<bool> &values) const
+{
+	std::map<int, bool> cache;
+	return evalX(id, modelExpressions, values, cache);
+}*/
+
+std::vector<bool> ezSAT::vec_eval(const std::vector<int> &id, const std::vector<int> &modelExpressions, const std::vector<bool> &values, std::map<int, bool> &cache) const {
+	std::vector<bool> result;
+	result.reserve(id.size());
+	for (const auto &item : id) {
+		result.push_back(evalX(item, modelExpressions, values, cache));
+	}
+	return result;
+}
+std::vector<bool> ezSAT::vec_eval(const std::vector<int> &id, const std::vector<int> &modelExpressions, const std::vector<bool> &values) const {
+	std::map<int, bool> cache;
+	return vec_eval(id, modelExpressions, values, cache);
+}
 void ezSAT::clear()
 {
 	cnfConsumed = false;
@@ -853,11 +891,11 @@ std::vector<int> ezSAT::vec_count(const std::vector<int> &vec, int numBits, bool
 	return sum;
 }
 
-std::vector<int> ezSAT::vec_add(const std::vector<int> &vec1, const std::vector<int> &vec2)
+std::vector<int> ezSAT::vec_add(const std::vector<int> &vec1, const std::vector<int> &vec2, int carry_in, int & carry_out)
 {
 	assert(vec1.size() == vec2.size());
 	std::vector<int> vec(vec1.size());
-	int carry = CONST_FALSE;
+	int carry = carry_in;
 	for (int i = 0; i < int(vec1.size()); i++)
 		fulladder(this, vec1[i], vec2[i], carry, carry, vec[i]);
 
@@ -874,8 +912,26 @@ std::vector<int> ezSAT::vec_add(const std::vector<int> &vec1, const std::vector<
 	printf("]\n");
 #endif
 
+	carry_out = carry;
+
 	return vec;
 }
+
+
+std::vector<int> ezSAT::vec_add(const std::vector<int> &vec1, const std::vector<int> &vec2)
+{
+	int unused;
+	return vec_add(vec1, vec2, CONST_FALSE, unused);
+}
+
+std::vector<int> ezSAT::vec_add_with_carryout(const std::vector<int> &vec1, const std::vector<int> &vec2) {
+	std::vector<int> result;
+	int carry_out;
+	result = vec_add(vec1, vec2, CONST_FALSE, carry_out);
+	result.push_back(carry_out);
+	return result;
+}
+
 
 std::vector<int> ezSAT::vec_sub(const std::vector<int> &vec1, const std::vector<int> &vec2)
 {
