@@ -238,9 +238,9 @@ struct SatHelper
 							show_drivers.insert(sigmap(p.second), cell);
 					import_cell_counter++;
 				} else if (ignore_unknown_cells)
-					log_warning("Failed to import cell %s (type %s) to SAT database.\n", RTLIL::id2cstr(cell->name), RTLIL::id2cstr(cell->type));
+					log_warning("Failed to import cell %s (type %s, from %s) to SAT database.\n", RTLIL::id2cstr(cell->name), RTLIL::id2cstr(cell->type), cell->get_src_attribute().c_str());
 				else
-					log_error("Failed to import cell %s (type %s) to SAT database.\n", RTLIL::id2cstr(cell->name), RTLIL::id2cstr(cell->type));
+					log_error("Failed to import cell %s (type %s, from %s) to SAT database.\n", RTLIL::id2cstr(cell->name), RTLIL::id2cstr(cell->type), cell->get_src_attribute().c_str());
 		}
 		log("Imported %d cells to SAT database.\n", import_cell_counter);
 

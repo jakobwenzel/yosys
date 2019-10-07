@@ -779,9 +779,6 @@ struct HierarchyPass : public Pass {
 					top_mod = mod;
 			}
 			if (top_mod != nullptr) {
-				if (top_mod->name.substr(0, 9) == "$abstract") {
-					top_mod = design->module(top_mod->derive(design, {}));
-				}
 
 				log("Automatically selected %s as design top module.\n", log_id(top_mod));
 			}
@@ -791,6 +788,10 @@ struct HierarchyPass : public Pass {
 			log_error("Design has no top module.\n");
 
 		if (top_mod != NULL) {
+			if (top_mod->name.substr(0, 9) == "$abstract") {
+				top_mod = design->module(top_mod->derive(design, {}));
+			}
+
 			for (auto &mod_it : design->modules_)
 				if (mod_it.second == top_mod)
 					mod_it.second->attributes["\\initial_top"] = RTLIL::Const(1);

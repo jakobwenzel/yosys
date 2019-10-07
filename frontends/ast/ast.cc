@@ -448,6 +448,44 @@ void AstNode::delete_children()
 		fprintf(f, "]");
 	}
 
+	bool dumpTransformedIf(FILE *f, std::string indent, const AstNode* node) {
+		if (node->type != AST_CASE)
+			return false;
+
+		if (node->children.size()<2 || node->children.size()>3)
+			return false;
+
+		AstNode * condition = node->children[0];
+		if (condition->type!=AST_REDUCE_BOOL)
+			return false;
+		AstNode * taken = node->children[1];
+		if (taken->type != AST_COND)
+			return false;
+		if (taken->children.size()!=2)
+			return false;
+		if (taken->children.at(0)->type!=AST_CONSTANT && taken->children.at(0)->integer != 1)
+			return false;
+		AstNode * notTaken = nullptr;
+		if (node->children.size()==3) {
+			notTaken = node->children[2];
+			if (notTaken->children.size()!=2)
+				return false;
+			if (notTaken->children.at(0)->type!=AST_DEFAULT)
+				return false;
+		}
+		fprintf(f, "%sif (", indent.c_str());
+
+		condition->children.at(0)->dumpVlog(f,"");
+
+		fprintf(f, ")\n");
+		taken->children.at(1)->dumpVlog(f, indent+"  ");
+		if (notTaken) {
+			fprintf(f,"%selse\n", indent.c_str());
+			notTaken->children.at(1)->dumpVlog(f, indent+"  ");
+		}
+		return true;
+	}
+
 // dump AST node as Verilog code
 	void AstNode::dumpVlog(FILE *f, std::string indent, bool inGenerate, AstNodeType parentType) const {
 
@@ -750,12 +788,15 @@ void AstNode::delete_children()
 				if (areChildrenMissing(f, indent, this, 1)) {
 					break;
 				}
+				if (dumpTransformedIf(f, indent, this)) {
+					break;
+				}
 
-		if (children.size()>1 && children[1]->type == AST_CONDX)
-					fprintf(f, "%s" "casex (", indent.c_str());
-		else if (children.size()>1 && children[1]->type == AST_CONDZ)
-					fprintf(f, "%s" "casez (", indent.c_str());
-		else
+				if (children.size()>1 && children[1]->type == AST_CONDX)
+							fprintf(f, "%s" "casex (", indent.c_str());
+				else if (children.size()>1 && children[1]->type == AST_CONDZ)
+							fprintf(f, "%s" "casez (", indent.c_str());
+				else
 					fprintf(f, "%s" "case (", indent.c_str());
 				children[0]->dumpVlog(f, "", inGenerate, type);
 				fprintf(f, ")\n");
@@ -1402,7 +1443,7 @@ void AstNode::delete_children()
 	for (size_t i = 0; i < children.size(); i++)
 		if (!children[i]->equals(*other.children[i], orAndBoolEqual, id2AstMustEqual))
 				return false;
-		return true;
+	return true;
 	}
 
 

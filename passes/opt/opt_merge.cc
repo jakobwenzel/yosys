@@ -25,6 +25,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <set>
+#include <list>
 
 #define USE_CELL_HASH_CACHE
 
@@ -153,15 +154,17 @@ struct OptMergeWorker
 	}
 #endif
 
-	bool compare_cell_parameters_and_connections(const RTLIL::Cell *cell1, const RTLIL::Cell *cell2, bool &lt)
+	bool compare_cell_parameters_and_connections(const RTLIL::Cell *cell1, const RTLIL::Cell *cell2, bool &lt, bool compare_connections)
 	{
 #ifdef USE_CELL_HASH_CACHE
-		std::string hash1 = hash_cell_parameters_and_connections(cell1);
-		std::string hash2 = hash_cell_parameters_and_connections(cell2);
+		if (compare_connections) {
+			std::string hash1 = hash_cell_parameters_and_connections(cell1);
+			std::string hash2 = hash_cell_parameters_and_connections(cell2);
 
-		if (hash1 != hash2) {
-			lt = hash1 < hash2;
-			return true;
+			if (hash1 != hash2) {
+				lt = hash1 < hash2;
+				return true;
+			}
 		}
 #endif
 
@@ -171,6 +174,9 @@ struct OptMergeWorker
 			lt = p1 < p2;
 			return true;
 		}
+
+		if (!compare_connections)
+			return false;
 
 		dict<RTLIL::IdString, RTLIL::SigSpec> conn1 = cell1->connections();
 		dict<RTLIL::IdString, RTLIL::SigSpec> conn2 = cell2->connections();
@@ -235,7 +241,7 @@ struct OptMergeWorker
 		return false;
 	}
 
-	bool compare_cells(const RTLIL::Cell *cell1, const RTLIL::Cell *cell2)
+	bool compare_cells(const RTLIL::Cell *cell1, const RTLIL::Cell *cell2, bool compare_connections)
 	{
 		if (cell1->type != cell2->type)
 			return cell1->type < cell2->type;
@@ -247,7 +253,7 @@ struct OptMergeWorker
 			return cell1 < cell2;
 
 		bool lt;
-		if (compare_cell_parameters_and_connections(cell1, cell2, lt))
+		if (compare_cell_parameters_and_connections(cell1, cell2, lt, compare_connections))
 			return lt;
 
 		return false;
@@ -255,15 +261,17 @@ struct OptMergeWorker
 
 	struct CompareCells {
 		OptMergeWorker *that;
-		CompareCells(OptMergeWorker *that) : that(that) {}
+		bool compare_connections;
+		CompareCells(OptMergeWorker *that, bool compare_connections) : that(that), compare_connections(compare_connections) {}
 		bool operator()(const RTLIL::Cell *cell1, const RTLIL::Cell *cell2) const {
-			return that->compare_cells(cell1, cell2);
+			return that->compare_cells(cell1, cell2, compare_connections);
 		}
 	};
 
-	OptMergeWorker(RTLIL::Design *design, RTLIL::Module *module, bool mode_nomux, bool mode_share_all) :
+	OptMergeWorker(RTLIL::Design *design, RTLIL::Module *module, bool mode_share_all) :
 		design(design), module(module), assign_map(module), mode_share_all(mode_share_all)
-	{
+	{}
+	void work(bool mode_nomux) {
 		total_count = 0;
 		ct.setup_internals();
 		ct.setup_internals_mem();
@@ -310,7 +318,7 @@ struct OptMergeWorker
 			}
 
 			did_something = false;
-			std::map<RTLIL::Cell*, RTLIL::Cell*, CompareCells> sharemap(CompareCells(this));
+			std::map<RTLIL::Cell*, RTLIL::Cell*, CompareCells> sharemap(CompareCells(this, true));
 			for (auto cell : cells)
 			{
 				if (sharemap.count(cell) > 0) {
@@ -339,6 +347,155 @@ struct OptMergeWorker
 
 		log_suppressed();
 	}
+
+	struct equivalences {
+		typedef std::set<RTLIL::Cell *> eqlist;
+		std::vector<eqlist> equivalences;
+		dict<RTLIL::Cell*, int> lookup;
+
+		void print() {
+			int i = 0;
+			for (const auto &eq : equivalences) {
+				log("Class %d:\n",i++);
+				for (const auto &item : eq) {
+					log("    %s\n", item->name.c_str());
+				}
+			}
+		}
+
+		void addToNewGroup(RTLIL::Cell * cell) {
+			equivalences.push_back({cell});
+			lookup[cell] = equivalences.size()-1;
+		}
+		void addToExistingGroup(RTLIL::Cell * existing, RTLIL::Cell * toAdd) {
+			int index = lookup[existing];
+			equivalences[index].emplace(toAdd);
+			lookup[toAdd] = index;
+		}
+		void remove(RTLIL::Cell * cell) {
+			int index = lookup[cell];
+			lookup.erase(cell);
+			equivalences.at(index).erase(cell);
+		}
+	};
+
+	struct equivalences initial_fill_equivalences() {
+
+		equivalences result;
+
+		std::map<RTLIL::Cell*, RTLIL::Cell*, CompareCells> sharemap(CompareCells(this, false));
+		for (auto cell : module->cells())
+		{
+			if (sharemap.count(cell) > 0) {
+				auto existing = sharemap[cell];
+				result.addToExistingGroup(existing, cell);
+			} else {
+				sharemap[cell] = cell;
+				result.addToNewGroup(cell);
+			}
+		}
+		return result;
+	}
+
+
+	bool connectionsMatch(RTLIL::Cell * a, RTLIL::Cell* b, const equivalences & equiv) {
+
+		log("looking at connections of %s\n", a->name.c_str());
+		for (const auto &item : a->connections()) {
+			log("looking at %s\n", item.first.c_str());
+			for (const RTLIL::SigBit & w : item.second) {
+				if (w.wire) {
+					log("sigbit wire %s %d\n", w.wire->name.c_str(), w.offset);
+					RTLIL::SigBit copy = w;
+					assign_map.apply(copy);
+					if (copy.wire) {
+						log("copy: sigbit wire %s %d\n", copy.wire->name.c_str(), copy.offset);
+					} else {
+						log("copy: sigbit %d\n", copy.data);
+					}
+				} else {
+					log("sigbit %d\n", w.data);
+				}
+			}
+		}
+		return true;
+	}
+
+	//Precondition: All connections for this class match. therefore we only look at one element to determine neighbours
+	void add_neighbours_to_queue(std::list<std::size_t> & queue, const equivalences & equiv, int index) {
+		auto cell = *equiv.equivalences.at(index).begin();
+	}
+
+	//Select an element of input. Move all non-matching elements from input to mismatches
+	void split(equivalences::eqlist & input, equivalences::eqlist & mismatches, const equivalences & equiv) {
+		if (input.empty()) {
+			throw std::runtime_error("empty?!?!?!");
+		}
+		auto reference = *input.begin();
+
+		log("reference: %s\n", reference->name.c_str());
+
+		for (auto iterator = std::next(input.begin()); iterator != input.end();) {
+			log("item: %s\n", (*iterator)->name.c_str());
+			if (connectionsMatch(reference, *iterator, equiv)) {
+				log("matches\n");
+				++iterator;
+			} else {
+				log("no match\n");
+				mismatches.emplace(*iterator);
+				iterator = input.erase(iterator);
+			}
+		}
+	}
+
+
+	void split_if_neccessary(std::size_t item, equivalences & equiv, std::list<std::size_t> & queue) {
+
+		equiv.equivalences.emplace_back();
+
+		auto & cells = equiv.equivalences.at(item);
+		equivalences::eqlist &mismatches = equiv.equivalences.back();
+		split(cells, mismatches, equiv);
+
+		if (!mismatches.empty()) {
+
+			std::size_t new_index = equiv.equivalences.size() - 1;
+			log("split some members to group %d\n", new_index);
+			for (const auto &mismatch : mismatches) {
+				equiv.lookup[mismatch] = new_index;
+			}
+			queue.push_back(new_index);
+			add_neighbours_to_queue(queue, equiv, item);
+			add_neighbours_to_queue(queue, equiv, new_index);
+
+		} else {
+			equiv.equivalences.pop_back();
+			log("not split\n");
+		}
+
+	}
+
+	void work_transitive() {
+		equivalences equiv = initial_fill_equivalences();
+
+
+		equiv.print();
+
+		std::list<std::size_t> queue;
+		for (std::size_t i=0; i < equiv.equivalences.size(); i++)
+			queue.push_back(i);
+
+		while (!queue.empty()) {
+			std::size_t item = queue.front();
+			queue.pop_front();
+
+			log("checking class %d\n", item);
+			split_if_neccessary(item, equiv, queue);
+		}
+
+		equiv.print();
+
+	}
 };
 
 struct OptMergePass : public Pass {
@@ -365,6 +522,7 @@ struct OptMergePass : public Pass {
 
 		bool mode_nomux = false;
 		bool mode_share_all = false;
+		bool mode_transitive = false;
 
 		size_t argidx;
 		for (argidx = 1; argidx < args.size(); argidx++) {
@@ -377,13 +535,22 @@ struct OptMergePass : public Pass {
 				mode_share_all = true;
 				continue;
 			}
+			if (arg == "-transitive") {
+				mode_transitive = true;
+				continue;
+			}
 			break;
 		}
 		extra_args(args, argidx, design);
 
 		int total_count = 0;
 		for (auto module : design->selected_modules()) {
-			OptMergeWorker worker(design, module, mode_nomux, mode_share_all);
+			OptMergeWorker worker(design, module, mode_share_all);
+			worker.work(mode_nomux);
+
+			if (mode_transitive) {
+				worker.work_transitive();
+			}
 			total_count += worker.total_count;
 		}
 
@@ -394,3 +561,30 @@ struct OptMergePass : public Pass {
 } OptMergePass;
 
 PRIVATE_NAMESPACE_END
+
+
+struct mergeworkerstruct {
+	OptMergeWorker worker;
+public:
+	mergeworkerstruct(RTLIL::Design *design, RTLIL::Module *module, bool mode_share_all) :
+		worker(design, module, mode_share_all){};
+};
+
+void del_mergeworker(mergeworkerstruct* p) {
+	delete p;
+}
+
+template<typename T>
+using deleted_unique_ptr = std::unique_ptr<T,std::function<void(T*)>>;
+
+using unique_ptr_mergeworkerstruct = deleted_unique_ptr<mergeworkerstruct>;
+
+unique_ptr_mergeworkerstruct gen_mergeworker(Yosys::Module * module, bool mode_share_all) {
+	auto p = new mergeworkerstruct(module->design, module, mode_share_all);
+	return unique_ptr_mergeworkerstruct(p, del_mergeworker);
+}
+
+
+bool optmerge_isLt(mergeworkerstruct * s, const RTLIL::Cell *cell1, const RTLIL::Cell *cell2) {
+	return s->worker.compare_cells(cell1, cell2, true);
+}

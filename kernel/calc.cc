@@ -482,7 +482,9 @@ RTLIL::Const RTLIL::const_add(const RTLIL::Const &arg1, const RTLIL::Const &arg2
 RTLIL::Const RTLIL::const_sub(const RTLIL::Const &arg1, const RTLIL::Const &arg2, bool signed1, bool signed2, int result_len)
 {
 	int undef_bit_pos = -1;
-	BigInteger y = const2big(arg1, signed1, undef_bit_pos) - const2big(arg2, signed2, undef_bit_pos);
+	auto a = const2big(arg1, signed1, undef_bit_pos);
+	auto b = const2big(arg2, signed2, undef_bit_pos);
+	BigInteger y = a - b;
 	return big2const(y, result_len >= 0 ? result_len : max(arg1.bits.size(), arg2.bits.size()), undef_bit_pos);
 }
 
