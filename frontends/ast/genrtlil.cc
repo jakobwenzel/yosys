@@ -1034,9 +1034,9 @@ RTLIL::SigSpec AstNode::genRTLIL(int width_hint, bool sign_hint)
 				// Ignore
 			}
 			// If an identifier is found that is not already known, assume that it is an interface:
-			/*else if (1) { // FIXME: Check if sv_mode first?
+			else if (1) { // FIXME: Check if sv_mode first?
 				is_interface = true;
-			}*/
+			}
 			else {
 				log_file_error(filename, linenum, "Identifier `%s' doesn't map to any signal!\n", str.c_str());
 			}
