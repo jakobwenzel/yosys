@@ -335,7 +335,7 @@ void AstNode::delete_children()
 
 	namespace AST {
 // helper function for AstNode::dumpVlog()
-		std::string id2vl(std::string txt) {
+		std::string id2vl(std::string txt, bool is_hierarchical_name) {
                 if (txt.size() > 1 && txt[0] == '\\')
 				txt = txt.substr(1);
 			for (size_t i = 0; i < txt.size(); i++) {
@@ -344,7 +344,7 @@ void AstNode::delete_children()
                         if ('0' <= txt[i] && txt[i] <= '9' && i > 0) continue;
                         if (txt[i] == '_') continue;
                         if (txt[i] == '$') continue;
-                        if (txt[i] == '.') continue;
+                        if (txt[i] == '.' && is_hierarchical_name) continue;
 				return "\\" + txt + " ";
 			}
 			return txt;
@@ -690,7 +690,7 @@ void AstNode::delete_children()
 				break;
 
 			case AST_IDENTIFIER:
-				fprintf(f, "%s", id2vl(str).c_str());
+				fprintf(f, "%s", id2vl(str, parentType == Yosys::AST::AST_DEFPARAM).c_str());
 		for (auto child : children)
 					child->dumpVlog(f, "", inGenerate, type);
 				break;
@@ -2448,7 +2448,6 @@ AstNode * AST::find_modport(AstNode *intf, std::string name)
 		modname = "$paramod$" + sha1(para_info) + stripped_name;*/
 	else
 			modname = "$paramod" + stripped_name + para_info;
-
 
 		(*new_ast_out) = new_ast;
 		return modname;

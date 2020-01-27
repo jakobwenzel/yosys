@@ -1021,7 +1021,7 @@ RTLIL::SigSpec AstNode::genRTLIL(int width_hint, bool sign_hint)
 				else
 					log_file_error(filename, linenum, "Identifier `%s' is implicitly declared and `default_nettype is set to none.\n", str.c_str());
 			}
-			else if (id2ast->type == AST_PARAMETER || id2ast->type == AST_LOCALPARAM) {
+			else if (id2ast && (id2ast->type == AST_PARAMETER || id2ast->type == AST_LOCALPARAM)) {
 				if (id2ast->children[0]->type != AST_CONSTANT)
 					log_file_error(filename, linenum, "Parameter %s does not evaluate to constant value!\n", str.c_str());
 				chunk = RTLIL::Const(id2ast->children[0]->bits);
@@ -1034,9 +1034,9 @@ RTLIL::SigSpec AstNode::genRTLIL(int width_hint, bool sign_hint)
 				// Ignore
 			}
 			// If an identifier is found that is not already known, assume that it is an interface:
-			else if (1) { // FIXME: Check if sv_mode first?
+			/*else if (1) { // FIXME: Check if sv_mode first?
 				is_interface = true;
-			}
+			}*/
 			else {
 				log_file_error(filename, linenum, "Identifier `%s' doesn't map to any signal!\n", str.c_str());
 			}

@@ -335,7 +335,7 @@ namespace AST
     	void removeNestedBlock(AstNode*& node);
 
     	AST::AstNode *readFromStream(std::istream &stream, const std::string &filename);
-        std::string id2vl(std::string txt);
+        std::string id2vl(std::string txt, bool is_hierarchical_name = false);
 }
 
 namespace AST_INTERNAL
