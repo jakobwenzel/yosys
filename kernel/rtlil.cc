@@ -775,7 +775,7 @@ int RTLIL::Module::find_top_mod_score_by_celltype(dict<Module*, int> &db, std::s
 		if (instModule != nullptr) {
 			return instModule->find_top_mod_score(db) + 1;
 		}
-		return 1;
+		return 0;
 	}
 }
 
