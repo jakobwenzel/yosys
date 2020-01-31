@@ -508,8 +508,14 @@ void AstNode::delete_children()
 			return;
 		}
 
+		//Sort attributes by string name to have stable outputs
+		std::map<std::string, Yosys::AST::AstNode*> sorted_attributes;
 		for (auto &it : attributes) {
-			fprintf(f, "%s" "(* %s = ", indent.c_str(), id2vl(it.first.str()).c_str());
+			sorted_attributes.emplace(it.first.str(), it.second);
+		}
+
+		for (auto &it: sorted_attributes) {
+			fprintf(f, "%s" "(* %s = ", indent.c_str(), id2vl(it.first).c_str());
 			it.second->dumpVlog(f, "", inGenerate, type);
 			fprintf(f, " *)%s", indent.empty() ? "" : "\n");
 		}
