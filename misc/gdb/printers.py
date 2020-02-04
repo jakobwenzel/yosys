@@ -23,8 +23,8 @@ class IdStringPrinter:
     def __init__(self, val):
         self.val = val
 
-    def children(self):
-        return []
+#    def children(self):
+#        return []
 
     def type_hint(self):
         return 'string'
