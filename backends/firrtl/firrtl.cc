@@ -29,6 +29,8 @@
 #include <vector>
 #include <cmath>
 
+#include "firrtl.h"
+
 USING_YOSYS_NAMESPACE
 PRIVATE_NAMESPACE_BEGIN
 
@@ -71,171 +73,136 @@ string next_id()
 	return new_id;
 }
 
-const char *make_id(IdString id)
-{
-	if (namecache.count(id) != 0)
-		return namecache.at(id).c_str();
 
-	string new_id = log_id(id);
+PRIVATE_NAMESPACE_END
 
-	for (int i = 0; i < GetSize(new_id); i++)
-	{
-		char &ch = new_id[i];
-		if ('a' <= ch && ch <= 'z') continue;
-		if ('A' <= ch && ch <= 'Z') continue;
-		if ('0' <= ch && ch <= '9' && i != 0) continue;
-		if ('_' == ch) continue;
-		ch = '_';
-	}
+namespace Yosys::Firrtl {
 
-	while (used_names.count(new_id) != 0)
-		new_id += '_';
 
-	namecache[id] = new_id;
-	used_names.insert(new_id);
-	return namecache.at(id).c_str();
-}
+    const char *make_id(IdString id)
+    {
+        if (namecache.count(id) != 0)
+            return namecache.at(id).c_str();
 
-struct FirrtlWorker
-{
-	Module *module;
-	std::ostream &f;
+        string new_id = log_id(id);
 
-	dict<SigBit, pair<string, int>> reverse_wire_map;
-	string unconn_id;
-	RTLIL::Design *design;
-	std::string indent;
+        for (int i = 0; i < GetSize(new_id); i++)
+        {
+            char &ch = new_id[i];
+            if ('a' <= ch && ch <= 'z') continue;
+            if ('A' <= ch && ch <= 'Z') continue;
+            if ('0' <= ch && ch <= '9' && i != 0) continue;
+            if ('_' == ch) continue;
+            ch = '_';
+        }
 
-	// Define read/write ports and memories.
-	// We'll collect their definitions and emit the corresponding FIRRTL definitions at the appropriate point in module construction.
-	// For the moment, we don't handle $readmemh or $readmemb.
-	// These will be part of a subsequent PR.
-	struct read_port {
-		string name;
-		bool clk_enable;
-		bool clk_parity;
-		bool transparent;
-		RTLIL::SigSpec clk;
-		RTLIL::SigSpec ena;
-		RTLIL::SigSpec addr;
-		read_port(string name, bool clk_enable, bool clk_parity, bool transparent, RTLIL::SigSpec clk, RTLIL::SigSpec ena, RTLIL::SigSpec addr) : name(name), clk_enable(clk_enable), clk_parity(clk_parity), transparent(transparent), clk(clk), ena(ena), addr(addr) {
-			// Current (3/13/2019) conventions:
-			//  generate a constant 0 for clock and a constant 1 for enable if they are undefined.
-			if (!clk.is_fully_def())
-				this->clk = SigSpec(State::S0);
-			if (!ena.is_fully_def())
-				this->ena = SigSpec(State::S1);
-		}
-		string gen_read(const char * indent) {
-			string addr_expr = make_expr(addr);
-			string ena_expr = make_expr(ena);
-			string clk_expr = make_expr(clk);
-			string addr_str = stringf("%s%s.addr <= %s\n", indent, name.c_str(), addr_expr.c_str());
-			string ena_str = stringf("%s%s.en <= %s\n", indent, name.c_str(), ena_expr.c_str());
-			string clk_str = stringf("%s%s.clk <= asClock(%s)\n", indent, name.c_str(), clk_expr.c_str());
-			return addr_str + ena_str + clk_str;
-		}
-	};
-	struct write_port : read_port {
-		RTLIL::SigSpec mask;
-		write_port(string name, bool clk_enable, bool clk_parity, bool transparent, RTLIL::SigSpec clk, RTLIL::SigSpec ena, RTLIL::SigSpec addr, RTLIL::SigSpec mask) : read_port(name, clk_enable, clk_parity, transparent, clk, ena, addr), mask(mask) {
-			if (!clk.is_fully_def())
-				this->clk = SigSpec(RTLIL::Const(0));
-			if (!ena.is_fully_def())
-				this->ena = SigSpec(RTLIL::Const(0));
-			if (!mask.is_fully_def())
-				this->ena = SigSpec(RTLIL::Const(1));
-		}
-		string gen_read(const char * /* indent */) {
-			log_error("gen_read called on write_port: %s\n", name.c_str());
-			return stringf("gen_read called on write_port: %s\n", name.c_str());
-		}
-		string gen_write(const char * indent) {
-			string addr_expr = make_expr(addr);
-			string ena_expr = make_expr(ena);
-			string clk_expr = make_expr(clk);
-			string mask_expr = make_expr(mask);
-			string mask_str = stringf("%s%s.mask <= %s\n", indent, name.c_str(), mask_expr.c_str());
-			string addr_str = stringf("%s%s.addr <= %s\n", indent, name.c_str(), addr_expr.c_str());
-			string ena_str = stringf("%s%s.en <= %s\n", indent, name.c_str(), ena_expr.c_str());
-			string clk_str = stringf("%s%s.clk <= asClock(%s)\n", indent, name.c_str(), clk_expr.c_str());
-			return addr_str + ena_str + clk_str + mask_str;
-		}
-	};
-	/* Memories defined within this module. */
-	struct memory {
-		Cell *pCell;					// for error reporting
-		string name;					// memory name
-		int abits;						// number of address bits
-		int size;						// size (in units) of the memory
-		int width;						// size (in bits) of each element
-		int read_latency;
-		int write_latency;
-		vector<read_port> read_ports;
-		vector<write_port> write_ports;
-		std::string init_file;
-		std::string init_file_srcFileSpec;
-		string srcLine;
-		memory(Cell *pCell, string name, int abits, int size, int width) : pCell(pCell), name(name), abits(abits), size(size), width(width), read_latency(0), write_latency(1), init_file(""), init_file_srcFileSpec("") {
-			// Provide defaults for abits or size if one (but not the other) is specified.
-			if (this->abits == 0 && this->size != 0) {
-				this->abits = ceil_log2(this->size);
-			} else if (this->abits != 0 && this->size == 0) {
-				this->size = 1 << this->abits;
-			}
-			// Sanity-check this construction.
-			if (this->name == "") {
-				log_error("Nameless memory%s\n", this->atLine());
-			}
-			if (this->abits == 0 && this->size == 0) {
-				log_error("Memory %s has zero address bits and size%s\n", this->name.c_str(), this->atLine());
-			}
-			if (this->width == 0) {
-				log_error("Memory %s has zero width%s\n", this->name.c_str(), this->atLine());
-			}
-		 }
-		// We need a default constructor for the dict insert.
-	   memory() : pCell(0), read_latency(0), write_latency(1), init_file(""), init_file_srcFileSpec(""){}
+        while (used_names.count(new_id) != 0)
+            new_id += '_';
 
-		const char *atLine() {
-			if (srcLine == "") {
-				if (pCell) {
-					auto p = pCell->attributes.find("\\src");
-					srcLine = " at " + p->second.decode_string();
-				}
-			}
-			return srcLine.c_str();
-		}
-		void add_memory_read_port(read_port &rp) {
-			read_ports.push_back(rp);
-		}
-		void add_memory_write_port(write_port &wp) {
-			write_ports.push_back(wp);
-		}
-		void add_memory_file(std::string init_file, std::string init_file_srcFileSpec) {
-			this->init_file = init_file;
-			this->init_file_srcFileSpec = init_file_srcFileSpec;
-		}
+        namecache[id] = new_id;
+        used_names.insert(new_id);
+        return namecache.at(id).c_str();
+    }
 
-	};
-	dict<string, memory> memories;
 
-	void register_memory(memory &m)
+    FirrtlWorker::read_port::read_port(string name, bool clk_enable, bool clk_parity, bool transparent, RTLIL::SigSpec clk, RTLIL::SigSpec ena, RTLIL::SigSpec addr) : name(name), clk_enable(clk_enable), clk_parity(clk_parity), transparent(transparent), clk(clk), ena(ena), addr(addr) {
+        // Current (3/13/2019) conventions:
+        //  generate a constant 0 for clock and a constant 1 for enable if they are undefined.
+        if (!clk.is_fully_def())
+            this->clk = SigSpec(State::S0);
+        if (!ena.is_fully_def())
+            this->ena = SigSpec(State::S1);
+    }
+    string FirrtlWorker::read_port::gen_read(const char * indent) {
+        string addr_expr = make_expr(addr);
+        string ena_expr = make_expr(ena);
+        string clk_expr = make_expr(clk);
+        string addr_str = stringf("%s%s.addr <= %s\n", indent, name.c_str(), addr_expr.c_str());
+        string ena_str = stringf("%s%s.en <= %s\n", indent, name.c_str(), ena_expr.c_str());
+        string clk_str = stringf("%s%s.clk <= asClock(%s)\n", indent, name.c_str(), clk_expr.c_str());
+        return addr_str + ena_str + clk_str;
+    }
+    FirrtlWorker::write_port::write_port(string name, bool clk_enable, bool clk_parity, bool transparent, RTLIL::SigSpec clk, RTLIL::SigSpec ena, RTLIL::SigSpec addr, RTLIL::SigSpec mask) : read_port(name, clk_enable, clk_parity, transparent, clk, ena, addr), mask(mask) {
+        if (!clk.is_fully_def())
+            this->clk = SigSpec(RTLIL::Const(0));
+        if (!ena.is_fully_def())
+            this->ena = SigSpec(RTLIL::Const(0));
+        if (!mask.is_fully_def())
+            this->ena = SigSpec(RTLIL::Const(1));
+    }
+    string FirrtlWorker::write_port::gen_read(const char * /* indent */) {
+        log_error("gen_read called on write_port: %s\n", name.c_str());
+        return stringf("gen_read called on write_port: %s\n", name.c_str());
+    }
+    string FirrtlWorker::write_port::gen_write(const char * indent) {
+        string addr_expr = make_expr(addr);
+        string ena_expr = make_expr(ena);
+        string clk_expr = make_expr(clk);
+        string mask_expr = make_expr(mask);
+        string mask_str = stringf("%s%s.mask <= %s\n", indent, name.c_str(), mask_expr.c_str());
+        string addr_str = stringf("%s%s.addr <= %s\n", indent, name.c_str(), addr_expr.c_str());
+        string ena_str = stringf("%s%s.en <= %s\n", indent, name.c_str(), ena_expr.c_str());
+        string clk_str = stringf("%s%s.clk <= asClock(%s)\n", indent, name.c_str(), clk_expr.c_str());
+        return addr_str + ena_str + clk_str + mask_str;
+    }
+    FirrtlWorker::memory::memory(Cell *pCell, string name, int abits, int size, int width) : pCell(pCell), name(name), abits(abits), size(size), width(width), read_latency(0), write_latency(1), init_file(""), init_file_srcFileSpec("") {
+        // Provide defaults for abits or size if one (but not the other) is specified.
+        if (this->abits == 0 && this->size != 0) {
+            this->abits = ceil_log2(this->size);
+        } else if (this->abits != 0 && this->size == 0) {
+            this->size = 1 << this->abits;
+        }
+        // Sanity-check this construction.
+        if (this->name == "") {
+            log_error("Nameless memory%s\n", this->atLine());
+        }
+        if (this->abits == 0 && this->size == 0) {
+            log_error("Memory %s has zero address bits and size%s\n", this->name.c_str(), this->atLine());
+        }
+        if (this->width == 0) {
+            log_error("Memory %s has zero width%s\n", this->name.c_str(), this->atLine());
+        }
+     }
+    // We need a default constructor for the dict insert.
+    FirrtlWorker::memory::memory() : pCell(0), read_latency(0), write_latency(1), init_file(""), init_file_srcFileSpec(""){}
+
+    const char *FirrtlWorker::memory::atLine() {
+        if (srcLine == "") {
+            if (pCell) {
+                auto p = pCell->attributes.find("\\src");
+                srcLine = " at " + p->second.decode_string();
+            }
+        }
+        return srcLine.c_str();
+    }
+    void FirrtlWorker::memory::add_memory_read_port(read_port &rp) {
+        read_ports.push_back(rp);
+    }
+    void FirrtlWorker::memory::add_memory_write_port(write_port &wp) {
+        write_ports.push_back(wp);
+    }
+    void FirrtlWorker::memory::add_memory_file(std::string init_file, std::string init_file_srcFileSpec) {
+        this->init_file = init_file;
+        this->init_file_srcFileSpec = init_file_srcFileSpec;
+    }
+
+
+	void FirrtlWorker::register_memory(memory &m)
 	{
 		memories[m.name] = m;
 	}
 
-	void register_reverse_wire_map(string id, SigSpec sig)
+	void FirrtlWorker::register_reverse_wire_map(string id, SigSpec sig)
 	{
 		for (int i = 0; i < GetSize(sig); i++)
 			reverse_wire_map[sig[i]] = make_pair(id, i);
 	}
 
-	FirrtlWorker(Module *module, std::ostream &f, RTLIL::Design *theDesign) : module(module), f(f), design(theDesign), indent("    ")
+    FirrtlWorker::FirrtlWorker(Module *module, std::ostream &f, RTLIL::Design *theDesign) : module(module), f(f), design(theDesign), indent("    ")
 	{
 	}
 
-	static string make_expr(const SigSpec &sig)
+	string FirrtlWorker::make_expr(const SigSpec &sig)
 	{
 		string expr;
 
@@ -282,17 +249,17 @@ struct FirrtlWorker
 		return expr;
 	}
 
-	std::string fid(RTLIL::IdString internal_id)
+	std::string FirrtlWorker::fid(RTLIL::IdString internal_id)
 	{
 		return make_id(internal_id);
 	}
 
-	std::string cellname(RTLIL::Cell *cell)
+	std::string FirrtlWorker::cellname(RTLIL::Cell *cell)
 	{
 		return fid(cell->name).c_str();
 	}
 
-	void process_instance(RTLIL::Cell *cell, vector<string> &wire_exprs)
+	void FirrtlWorker::process_instance(RTLIL::Cell *cell, vector<string> &wire_exprs)
 	{
 		std::string cell_type = fid(cell->type);
 		std::string instanceOf;
@@ -381,7 +348,7 @@ struct FirrtlWorker
 
 	// Given an expression for a shift amount, and a maximum width,
 	//  generate the FIRRTL expression for equivalent dynamic shift taking into account FIRRTL shift semantics.
-	std::string gen_dshl(const string b_expr, const int b_width)
+	std::string FirrtlWorker::gen_dshl(const string b_expr, const int b_width)
 	{
 		string result = b_expr;
 		if (b_width >= FIRRTL_MAX_DSH_WIDTH_ERROR) {
@@ -393,7 +360,7 @@ struct FirrtlWorker
 		return result;
 	}
 
-	void run()
+	void FirrtlWorker::run()
 	{
 		f << stringf("  module %s:\n", make_id(module->name));
 		vector<string> port_decls, wire_decls, cell_exprs, wire_exprs;
@@ -877,7 +844,7 @@ struct FirrtlWorker
 			}
 
 			// This may be a parameterized module - paramod.
-			if (cell->type.begins_with("$paramod"))
+			if (cell->type.begins_with("$paramod") || cell->type.begins_with("$pluginparamod"))
 			{
 				process_instance(cell, wire_exprs);
 				continue;
@@ -1066,8 +1033,8 @@ struct FirrtlWorker
 		for (auto str : wire_exprs)
 			f << str;
 	}
-};
-
+}
+PRIVATE_NAMESPACE_BEGIN
 struct FirrtlBackend : public Backend {
 	FirrtlBackend() : Backend("firrtl", "write design to a FIRRTL file") { }
 	void help() YS_OVERRIDE
@@ -1111,24 +1078,24 @@ struct FirrtlBackend : public Backend {
 		Module *last = nullptr;
 		// Generate module and wire names.
 		for (auto module : design->modules()) {
-			make_id(module->name);
+			Yosys::Firrtl::make_id(module->name);
 			last = module;
 			if (top == nullptr && module->get_bool_attribute("\\top")) {
 				top = module;
 			}
 			for (auto wire : module->wires())
 				if (wire->port_id)
-					make_id(wire->name);
+                    Yosys::Firrtl::make_id(wire->name);
 		}
 
 		if (top == nullptr)
 			top = last;
 
-		*f << stringf("circuit %s:\n", make_id(top->name));
+		*f << stringf("circuit %s:\n", Yosys::Firrtl::make_id(top->name));
 
 		for (auto module : design->modules())
 		{
-			FirrtlWorker worker(module, *f, design);
+			Yosys::Firrtl::FirrtlWorker worker(module, *f, design);
 			worker.run();
 		}
 

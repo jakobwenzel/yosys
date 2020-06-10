@@ -2450,8 +2450,8 @@ AstNode * AST::find_modport(AstNode *intf, std::string name)
 
 	if (orig_parameters_n == 0)
 			modname = stripped_name;
-	/*else if (para_info.size() > 60)
-		modname = "$paramod$" + sha1(para_info) + stripped_name;*/
+	else if (para_info.size() > 60)
+		modname = "$paramod$" + sha1(para_info) + stripped_name;
 	else
 			modname = "$paramod" + stripped_name + para_info;
 
