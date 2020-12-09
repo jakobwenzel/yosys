@@ -43,13 +43,25 @@ struct EdifNames
 
 	EdifNames() : counter(1), delim_left('['), delim_right(']') { }
 
+	std::string escape_content(const std::string & id) {
+		std::ostringstream ss;
+		for (auto c : id) {
+			if (c == '%' || c == '"') {
+				ss << "% " << ((int)c) << " %";
+			} else {
+				ss << c;
+			}
+		}
+		return ss.str();
+	}
+
 	std::string operator()(std::string id, bool define, bool port_rename = false, int range_left = 0, int range_right = 0)
 	{
 		if (define) {
 			std::string new_id = operator()(id, false);
 			if (port_rename)
-				return stringf("(rename %s \"%s%c%d:%d%c\")", new_id.c_str(), id.c_str(), delim_left, range_left, range_right, delim_right);
-			return new_id != id ? stringf("(rename %s \"%s\")", new_id.c_str(), id.c_str()) : id;
+				return stringf("(rename %s \"%s%c%d:%d%c\")", new_id.c_str(), escape_content(id).c_str(), delim_left, range_left, range_right, delim_right);
+			return new_id != id ? stringf("(rename %s \"%s\")", new_id.c_str(), escape_content(id).c_str()) : id;
 		}
 
 		if (name_map.count(id) > 0)
