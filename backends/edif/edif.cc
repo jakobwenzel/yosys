@@ -215,6 +215,27 @@ struct EdifBackend : public Backend {
 		if (top_module_name.empty())
 			log_error("No module found in design!\n");
 
+
+		auto add_prop = [&](IdString name, Const val) {
+		  if ((val.flags & RTLIL::CONST_FLAG_STRING) != 0)
+			  *f << stringf("\n            (property %s (string \"%s\"))", EDIF_DEF(name), val.decode_string().c_str());
+		  else if (val.bits.size() <= 32 && RTLIL::SigSpec(val).is_fully_def())
+			  *f << stringf("\n            (property %s (integer %u))", EDIF_DEF(name), val.as_int());
+		  else {
+			  std::string hex_string = "";
+			  for (size_t i = 0; i < val.bits.size(); i += 4) {
+				  int digit_value = 0;
+				  if (i+0 < val.bits.size() && val.bits.at(i+0) == RTLIL::State::S1) digit_value |= 1;
+				  if (i+1 < val.bits.size() && val.bits.at(i+1) == RTLIL::State::S1) digit_value |= 2;
+				  if (i+2 < val.bits.size() && val.bits.at(i+2) == RTLIL::State::S1) digit_value |= 4;
+				  if (i+3 < val.bits.size() && val.bits.at(i+3) == RTLIL::State::S1) digit_value |= 8;
+				  char digit_str[2] = { "0123456789abcdef"[digit_value], 0 };
+				  hex_string = std::string(digit_str) + hex_string;
+			  }
+			  *f << stringf("\n            (property %s (string \"%d'h%s\"))", EDIF_DEF(name), GetSize(val.bits), hex_string.c_str());
+		  }
+		};
+
 		*f << stringf("(edif %s\n", EDIF_DEF(top_module_name));
 		*f << stringf("  (edifVersion 2 0 0)\n");
 		*f << stringf("  (edifLevel 0)\n");
@@ -274,6 +295,14 @@ struct EdifBackend : public Backend {
 				}
 			}
 			*f << stringf("        )\n");
+
+			if (attr_properties) {
+				auto *module = design->module(cell_it.first);
+				if (module != nullptr) {
+					for (auto &p : module->attributes)
+						add_prop(p.first, p.second);
+				}
+			}
 			*f << stringf("      )\n");
 			*f << stringf("    )\n");
 		}
@@ -320,26 +349,6 @@ struct EdifBackend : public Backend {
 			SigMap sigmap(module);
 			std::map<RTLIL::SigSpec, std::set<std::string>> net_join_db;
 
-
-            auto add_prop = [&](IdString name, Const val) {
-                if ((val.flags & RTLIL::CONST_FLAG_STRING) != 0)
-                    *f << stringf("\n            (property %s (string \"%s\"))", EDIF_DEF(name), val.decode_string().c_str());
-                else if (val.bits.size() <= 32 && RTLIL::SigSpec(val).is_fully_def())
-                    *f << stringf("\n            (property %s (integer %u))", EDIF_DEF(name), val.as_int());
-                else {
-                    std::string hex_string = "";
-                    for (size_t i = 0; i < val.bits.size(); i += 4) {
-                        int digit_value = 0;
-                        if (i+0 < val.bits.size() && val.bits.at(i+0) == RTLIL::State::S1) digit_value |= 1;
-                        if (i+1 < val.bits.size() && val.bits.at(i+1) == RTLIL::State::S1) digit_value |= 2;
-                        if (i+2 < val.bits.size() && val.bits.at(i+2) == RTLIL::State::S1) digit_value |= 4;
-                        if (i+3 < val.bits.size() && val.bits.at(i+3) == RTLIL::State::S1) digit_value |= 8;
-                        char digit_str[2] = { "0123456789abcdef"[digit_value], 0 };
-                        hex_string = std::string(digit_str) + hex_string;
-                    }
-                    *f << stringf("\n            (property %s (string \"%d'h%s\"))", EDIF_DEF(name), GetSize(val.bits), hex_string.c_str());
-                }
-            };
 
 			*f << stringf("    (cell %s\n", EDIF_DEF(module->name));
 			*f << stringf("      (cellType GENERIC)\n");
