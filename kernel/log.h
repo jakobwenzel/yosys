@@ -363,6 +363,9 @@ void log_dump_args_worker(const char *p, T first, Args ... args)
 	log("\n"); \
 } while (0)
 
+
+void log_dump_tree(std::ostream & out);
+
 YOSYS_NAMESPACE_END
 
 #endif
