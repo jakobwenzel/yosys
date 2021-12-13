@@ -1400,6 +1400,7 @@ namespace {
 
 void RTLIL::Module::sort()
 {
+    attributes.sort(sort_by_id_str());
 	wires_.sort(sort_by_id_str());
 	cells_.sort(sort_by_id_str());
 	avail_parameters.sort(sort_by_id_str());
