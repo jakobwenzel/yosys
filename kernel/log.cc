@@ -78,6 +78,8 @@ struct log_tree {
     log_tree * parent;
     std::string name;
     std::string name_template;
+    std::string header_id;
+    std::string args;
     time_point start_time;
     time_point end_time;
     std::vector<std::unique_ptr<log_tree>> children;
@@ -105,7 +107,21 @@ struct log_tree {
         if (!first) {
             out << ',';
         }
-        out << "\n{\"name\": \""<<nameNoNewline<<"\", \"cat\": \"foo\", \"ph\": \""<<code<<"\", \"ts\": "<<timestamp<<", \"pid\": 1, \"tid\": 1}";
+        out << "\n{\"name\": \""
+            << nameNoNewline
+            << "\", \"cat\": \"foo\", \"ph\": \""
+            << code
+            << "\", \"ts\": "
+            << timestamp
+            << ", \"pid\": 1, \"tid\": 1, \"args\": {"; //\"header_id\":\""
+            //<< header_id
+            //<< '"';
+        if (!args.empty()) {
+            out << "\"args\":\""
+                << args
+                << '"';
+        }
+        out << "}}";
     }
 
     void dump(std::ostream & out, const time_point & beginning, bool root = true, bool first = true) {
@@ -286,8 +302,9 @@ void logv_header(RTLIL::Design *design, const char *format, va_list ap)
     }
     current_item->children.emplace_back(new log_tree(current_item));
     log_tree * child = current_item->children.back().get();
-    child->name = header_id + ' ' +formatted;
-    child->name_template = header_id + ' ' +format;
+    child->name = formatted;
+    child->name_template = format;
+    child->header_id = header_id;
 
     if (log_hdump_all)
 		log_hdump[header_id].insert("yosys_dump_" + header_id + ".il");
@@ -305,6 +322,31 @@ void logv_header(RTLIL::Design *design, const char *format, va_list ap)
 	if (pop_errfile)
 		log_files.pop_back();
 }
+
+
+
+std::string vec2str(const std::vector<std::string> & vec) {
+    std::ostringstream ss;
+    bool first = true;
+    ss << '[';
+    for (const auto & s : vec) {
+        if (first) {
+            first = false;
+        } else {
+            ss << ", ";
+        }
+        ss << s;
+    }
+    ss << ']';
+    return ss.str();
+}
+void log_header_args(const std::vector<std::string> & args) {
+    if (current_item->children.empty()) {
+        return;
+    }
+    current_item->children.back()->args = vec2str(args);
+}
+
 
 static void logv_warning_with_prefix(const char *prefix,
                                      const char *format, va_list ap)
