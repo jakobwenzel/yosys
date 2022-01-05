@@ -38,7 +38,19 @@
 #include <vector>
 #include <list>
 
+#include "log_trace.h"
+
 YOSYS_NAMESPACE_BEGIN
+
+HeaderFunc headerFunc = nullptr;
+LevelFunc pushFunc = nullptr;
+LevelFunc popFunc = nullptr;
+
+void log_set_callbacks(HeaderFunc header, LevelFunc push, LevelFunc pop) {
+    headerFunc = header;
+    pushFunc =push;
+    popFunc = pop;
+}
 
 std::vector<FILE*> log_files;
 std::vector<std::ostream*> log_streams;
@@ -296,7 +308,6 @@ void logv_header(RTLIL::Design *design, const char *format, va_list ap)
 	log("%s. %s", header_id.c_str(), formatted.c_str());
 	log_flush();
 
-
     if (!current_item->children.empty()) {
         current_item->children.back()->finish();
     }
@@ -305,6 +316,11 @@ void logv_header(RTLIL::Design *design, const char *format, va_list ap)
     child->name = formatted;
     child->name_template = format;
     child->header_id = header_id;
+
+
+    if (headerFunc != nullptr) {
+        headerFunc(std::move(formatted), std::move(header_id));
+    }
 
     if (log_hdump_all)
 		log_hdump[header_id].insert("yosys_dump_" + header_id + ".il");
@@ -544,6 +560,10 @@ void log_spacer()
 void log_push()
 {
 	header_count.push_back(0);
+
+    if (pushFunc != nullptr) {
+        pushFunc();
+    }
     if (current_item == nullptr) {
         //Are we creating the root right now?
         tree_root.reset(new log_tree(nullptr, "Root"));
@@ -561,15 +581,20 @@ void log_push()
 
 void log_pop()
 {
-    if (current_item == nullptr) {
-        throw std::runtime_error("pop too much?! "+std::to_string(header_count.size()));
-    }
 	header_count.pop_back();
 	log_id_cache_clear();
 	string_buf.clear();
 	string_buf_index = -1;
 	log_flush();
 
+
+    if (pushFunc != nullptr) {
+        pushFunc();
+    }
+
+    if (current_item == nullptr) {
+        throw std::runtime_error("pop too much?! "+std::to_string(header_count.size()));
+    }
     if (!current_item->children.empty()) {
         current_item->children.back()->finish();
     }
