@@ -135,13 +135,59 @@ struct EdifBackend : public Backend {
 		log("is targeted.\n");
 		log("\n");
 	}
+
+
+    struct netentry {
+        RTLIL::SigBit sig;
+        std::set<std::string> connections;
+        std::string netname;
+
+        void calculateName() {
+            if (sig.wire == NULL && sig != RTLIL::State::S0 && sig != RTLIL::State::S1) {
+                if (sig == RTLIL::State::Sx) {
+                    for (auto &ref : connections)
+                        log_warning("Exporting x-bit on %s as zero bit.\n", ref.c_str());
+                    sig = RTLIL::State::S0;
+                } else {
+                    for (auto &ref : connections)
+                        log_error("Don't know how to handle %s on %s.\n", log_signal(sig), ref.c_str());
+                    log_abort();
+                }
+            }
+            if (sig == RTLIL::State::S0)
+                netname = "GND_NET";
+            else if (sig == RTLIL::State::S1)
+                netname = "VCC_NET";
+            else {
+                netname = log_signal(sig);
+                for (size_t i = 0; i < netname.size(); i++)
+                    if (netname[i] == ' ' || netname[i] == '\\')
+                        netname.erase(netname.begin() + i--);
+            }
+        }
+
+        void insert(std::string item) {
+            connections.insert(std::move(item));
+        }
+
+        bool operator<(const netentry &other) {
+            return netname < other.netname;
+        }
+    };
+
+    struct IdStringValueComparer {
+        bool operator()(const Yosys::IdString &a, const Yosys::IdString&b) const {
+            return a.str()<b.str();
+        }
+    };
+
 	void execute(std::ostream *&f, std::string filename, std::vector<std::string> args, RTLIL::Design *design) YS_OVERRIDE
 	{
 		log_header(design, "Executing EDIF backend.\n");
 		std::string top_module_name;
 		bool port_rename = false;
 		bool attr_properties = false;
-		std::map<RTLIL::IdString, std::map<RTLIL::IdString, int>> lib_cell_ports;
+		std::map<Yosys::IdString, std::map<RTLIL::IdString, int>, IdStringValueComparer> lib_cell_ports;
 		bool nogndvcc = false, gndvccy = false;
 		CellTypes ct(design);
 		EdifNames edif_names;
@@ -266,12 +312,14 @@ struct EdifBackend : public Backend {
 		}
 
 		for (auto &cell_it : lib_cell_ports) {
+            std::vector<std::pair<Yosys::IdString,int>> sorted_ports(cell_it.second.begin(), cell_it.second.end());
+            std::sort(sorted_ports.begin(), sorted_ports.end(), [](const std::pair<Yosys::IdString,int> &a, const std::pair<Yosys::IdString,int> &b){return a.first.str()<b.first.str();});
 			*f << stringf("    (cell %s\n", EDIF_DEF(cell_it.first));
 			*f << stringf("      (cellType GENERIC)\n");
 			*f << stringf("      (view VIEW_NETLIST\n");
 			*f << stringf("        (viewType NETLIST)\n");
 			*f << stringf("        (interface\n");
-			for (auto &port_it : cell_it.second) {
+			for (auto &port_it : sorted_ports) {
 				const char *dir = "INOUT";
 				if (ct.cell_known(cell_it.first)) {
 					if (!ct.cell_output(cell_it.first, port_it.first))
@@ -345,9 +393,10 @@ struct EdifBackend : public Backend {
 		{
 			if (module->get_blackbox_attribute())
 				continue;
+            module->sort();
 
 			SigMap sigmap(module);
-			std::map<RTLIL::SigSpec, std::set<std::string>> net_join_db;
+			std::map<RTLIL::SigSpec, netentry> net_join_db;
 
 
 			*f << stringf("    (cell %s\n", EDIF_DEF(module->name));
@@ -390,6 +439,8 @@ struct EdifBackend : public Backend {
 				*f << stringf("          (instance GND (viewRef VIEW_NETLIST (cellRef GND (libraryRef LIB))))\n");
 				*f << stringf("          (instance VCC (viewRef VIEW_NETLIST (cellRef VCC (libraryRef LIB))))\n");
 			}
+
+
 			for (auto &cell_it : module->cells_) {
 				RTLIL::Cell *cell = cell_it.second;
 				*f << stringf("          (instance %s\n", EDIF_DEF(cell->name));
@@ -424,32 +475,20 @@ struct EdifBackend : public Backend {
 						}
 				}
 			}
-			for (auto &it : net_join_db) {
-				RTLIL::SigBit sig = it.first;
-				if (sig.wire == NULL && sig != RTLIL::State::S0 && sig != RTLIL::State::S1) {
-					if (sig == RTLIL::State::Sx) {
-						for (auto &ref : it.second)
-							log_warning("Exporting x-bit on %s as zero bit.\n", ref.c_str());
-						sig = RTLIL::State::S0;
-					} else {
-						for (auto &ref : it.second)
-							log_error("Don't know how to handle %s on %s.\n", log_signal(sig), ref.c_str());
-						log_abort();
-					}
-				}
-				std::string netname;
-				if (sig == RTLIL::State::S0)
-					netname = "GND_NET";
-				else if (sig == RTLIL::State::S1)
-					netname = "VCC_NET";
-				else {
-					netname = log_signal(sig);
-					for (size_t i = 0; i < netname.size(); i++)
-						if (netname[i] == ' ' || netname[i] == '\\')
-							netname.erase(netname.begin() + i--);
-				}
+            std::vector<netentry> sorted_netdb;
+            sorted_netdb.reserve(net_join_db.size());
+            for (auto &it : net_join_db) {
+                it.second.sig = it.first;
+                it.second.calculateName();
+                sorted_netdb.push_back(std::move(it.second));
+            }
+            std::sort(sorted_netdb.begin(), sorted_netdb.end());
+			for (auto &it : sorted_netdb) {
+                const std::string& netname = it.netname;
+                const auto & sig= it.sig;
+
 				*f << stringf("          (net %s (joined\n", EDIF_DEF(netname));
-				for (auto &ref : it.second)
+				for (auto &ref : it.connections)
 					*f << stringf("            %s\n", ref.c_str());
 				if (sig.wire == NULL) {
 					if (nogndvcc)
