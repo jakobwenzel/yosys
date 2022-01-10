@@ -59,6 +59,14 @@ namespace AST_INTERNAL {
 	bool current_always_clocked;
 }
 
+
+void AST::set_dump_no_ptr(bool dump_no_ptr) {
+    flag_no_dump_ptr = dump_no_ptr;
+}
+bool AST::get_dump_no_ptr() {
+    return flag_no_dump_ptr;
+}
+
 // convert node types to string
 std::string AST::type2str(AstNodeType type)
 {

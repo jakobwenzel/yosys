@@ -293,6 +293,9 @@ namespace AST
                 static bool equals(const AstNode * a, const AstNode *b, bool orAndBoolEqual = false, bool id2astMustEqual = false);
         };
 
+    void set_dump_no_ptr(bool dump_no_ptr);
+    bool get_dump_no_ptr();
+
 	// process an AST tree (ast must point to an AST_DESIGN node) and generate RTLIL code
 	void process(RTLIL::Design *design, AstNode *ast, bool dump_ast1, bool dump_ast2, bool no_dump_ptr, bool dump_vlog1, bool dump_vlog2, bool dump_rtlil, bool nolatches, bool nomeminit,
 			bool nomem2reg, bool mem2reg, bool noblackbox, bool lib, bool nowb, bool noopt, bool icells, bool pwires, bool nooverwrite, bool overwrite, bool defer, bool autowire);
