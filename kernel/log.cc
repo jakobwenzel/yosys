@@ -84,95 +84,6 @@ static struct timeval initial_tv = { 0, 0 };
 static bool next_print_log = false;
 static int log_newline_count = 0;
 
-using time_point = std::chrono::time_point<std::chrono::high_resolution_clock>;
-
-struct log_tree {
-    log_tree * parent;
-    std::string name;
-    std::string name_template;
-    std::string header_id;
-    std::string args;
-    time_point start_time;
-    time_point end_time;
-    std::vector<std::unique_ptr<log_tree>> children;
-
-    log_tree(log_tree * parent) : parent(parent) {
-        start_time = std::chrono::high_resolution_clock::now();
-    }
-    log_tree(log_tree * parent, std::string name) : parent(parent), name(std::move(name)), name_template(this->name) {
-        start_time = std::chrono::high_resolution_clock::now();
-    }
-
-    void finish() {
-        end_time = std::chrono::high_resolution_clock::now();
-    }
-
-
-    void dump_event(std::ostream & out, char code, const time_point & event_time, const time_point & beginning, bool first) {
-
-        auto nameNoNewline = boost::trim_right_copy(name);
-        boost::replace_all(nameNoNewline, "\\", "\\\\");
-        boost::replace_all(nameNoNewline, "\"", "\\\"");
-
-        auto timestamp = std::chrono::duration_cast<std::chrono::microseconds>(event_time-beginning).count();
-
-        if (!first) {
-            out << ',';
-        }
-        out << "\n{\"name\": \""
-            << nameNoNewline
-            << "\", \"cat\": \"foo\", \"ph\": \""
-            << code
-            << "\", \"ts\": "
-            << timestamp
-            << ", \"pid\": 1, \"tid\": 1, \"args\": {"; //\"header_id\":\""
-            //<< header_id
-            //<< '"';
-        if (!args.empty()) {
-            out << "\"args\":\""
-                << args
-                << '"';
-        }
-        out << "}}";
-    }
-
-    void dump(std::ostream & out, const time_point & beginning, bool root = true, bool first = true) {
-
-        if (!root) {
-            dump_event(out, 'B', start_time, beginning, first);
-        } else {
-            out << '[';
-        }
-
-
-
-        bool first_child = root;
-        for (const auto & child : children) {
-            child->dump(out, beginning, false, first_child);
-            first_child = false;
-        }
-
-
-        if (!root) {
-            dump_event(out, 'E', end_time, beginning, false);
-        } else {
-            out << "\n]\n";
-        }
-    }
-};
-
-static std::unique_ptr<log_tree> tree_root;
-
-log_tree * current_item = nullptr;
-void log_dump_tree(std::ostream & out) {
-    tree_root->finish();
-    if (current_item != tree_root.get()) {
-        throw new std::runtime_error("did not pop");
-    }
-
-    tree_root->dump(out, tree_root->start_time);
-}
-
 static void log_id_cache_clear()
 {
 	for (auto p : log_id_cache)
@@ -308,16 +219,6 @@ void logv_header(RTLIL::Design *design, const char *format, va_list ap)
 	log("%s. %s", header_id.c_str(), formatted.c_str());
 	log_flush();
 
-    if (!current_item->children.empty()) {
-        current_item->children.back()->finish();
-    }
-    current_item->children.emplace_back(new log_tree(current_item));
-    log_tree * child = current_item->children.back().get();
-    child->name = formatted;
-    child->name_template = format;
-    child->header_id = header_id;
-
-
     if (headerFunc != nullptr) {
         headerFunc(std::move(formatted), std::move(header_id));
     }
@@ -356,13 +257,6 @@ std::string vec2str(const std::vector<std::string> & vec) {
     ss << ']';
     return ss.str();
 }
-void log_header_args(const std::vector<std::string> & args) {
-    if (current_item->children.empty()) {
-        return;
-    }
-    current_item->children.back()->args = vec2str(args);
-}
-
 
 static void logv_warning_with_prefix(const char *prefix,
                                      const char *format, va_list ap)
@@ -564,19 +458,6 @@ void log_push()
     if (pushFunc != nullptr) {
         pushFunc();
     }
-    if (current_item == nullptr) {
-        //Are we creating the root right now?
-        tree_root.reset(new log_tree(nullptr, "Root"));
-        current_item = tree_root.get();
-    } else if (current_item->children.empty()) {
-        current_item->children.emplace_back(new log_tree(current_item));
-        log_tree * child = current_item->children.back().get();
-        child->name = "Unnamed";
-        child->name_template = child->name;
-        current_item = child;
-    } else {
-        current_item = current_item->children.back().get();
-    }
 }
 
 void log_pop()
@@ -588,18 +469,9 @@ void log_pop()
 	log_flush();
 
 
-    if (pushFunc != nullptr) {
-        pushFunc();
+    if (popFunc != nullptr) {
+        popFunc();
     }
-
-    if (current_item == nullptr) {
-        throw std::runtime_error("pop too much?! "+std::to_string(header_count.size()));
-    }
-    if (!current_item->children.empty()) {
-        current_item->children.back()->finish();
-    }
-    current_item->finish();
-    current_item = current_item->parent;
 }
 
 #if (defined(__linux__) || defined(__FreeBSD__)) && defined(YOSYS_ENABLE_PLUGINS)
@@ -701,27 +573,13 @@ void log_backtrace(const char*, int) { }
 
 void log_reset_stack()
 {
+	while (header_count.size() > 1) {
+        header_count.pop_back();
 
-    if (current_item == nullptr) {
-        throw new std::runtime_error("don't have an item!");
+        if (popFunc != nullptr) {
+            popFunc();
+        }
     }
-
-    if (!current_item->children.empty()) {
-        current_item->children.back()->finish();
-    }
-
-    while (current_item != nullptr && current_item != tree_root.get()) {
-        current_item->finish();
-        current_item = current_item->parent;
-    }
-
-
-    if (current_item == nullptr) {
-        throw new std::runtime_error("did not find log tree root!");
-    }
-
-	while (header_count.size() > 1)
-		header_count.pop_back();
 	log_id_cache_clear();
 	string_buf.clear();
 	string_buf_index = -1;
