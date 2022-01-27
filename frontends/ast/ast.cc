@@ -195,6 +195,8 @@ bool AstNode::get_bool_attribute(RTLIL::IdString id)
 	return attr->integer != 0;
 }
 
+std::ofstream* allocLog = nullptr;
+
 // create new node (AstNode constructor)
 // (the optional child arguments make it easier to create AST trees)
 	AstNode::AstNode(AstNodeType type, AstNode *child1, AstNode *child2, AstNode *child3) {
@@ -225,22 +227,61 @@ bool AstNode::get_bool_attribute(RTLIL::IdString id)
 		id2ast = NULL;
 		basic_prep = false;
 
-	if (child1)
-			children.push_back(child1);
-	if (child2)
-			children.push_back(child2);
-	if (child3)
-			children.push_back(child3);
-		}
+        if (allocLog) {
+            *allocLog << "Created Node " << ((void *) this) << " typed " << type2str(type);
+        }
+	if (child1) {
+        children.push_back(child1);
+        *allocLog << " with child " << ((void*)child1)<<", a "<<type2str(child1->type);
+    }
+	if (child2) {
+        children.push_back(child2);
+        *allocLog << " with child " << ((void*)child2)<<", a "<<type2str(child2->type);
+    }
+	if (child3) {
+        children.push_back(child3);
+        *allocLog << " with child " << ((void*)child3)<<", a "<<type2str(child3->type);
+    }
+    if (allocLog) {
+        *allocLog << '\n';
+    }
+    }
+    std::string node2something(const Yosys::AST::AstNode *node, void dumper(const Yosys::AST::AstNode *n, FILE *f)) {
+        char *out = nullptr;
+        size_t len = 0;
+        FILE *f = open_memstream(&out, &len);
+        dumper(node, f);
+        fclose(f);
 
+        std::string res(out);
+
+        free(out);
+        return res;
+    }
+
+    std::string node2verilog(const Yosys::AST::AstNode *node) {
+        return node2something(node, [](const Yosys::AST::AstNode *n, FILE *f) { n->dumpVlog(f); });
+    }
+
+    std::string node2ast(const Yosys::AST::AstNode *node) {
+        return node2something(node, [](const Yosys::AST::AstNode *n, FILE *f) { n->dumpAst(f); });
+    }
 // create a (deep recursive) copy of a node
 	AstNode *AstNode::clone() const {
 		AstNode *that = new AstNode;
 		*that = *this;
+        if (allocLog) {
+            *allocLog << "Cloned Node " << ((void *) that) << " typed " << type2str(type)<< " from "<<((void*)this)<<'\n';
+        }
 	for (auto &it : that->children)
 			it = it->clone();
 	for (auto &it : that->attributes)
 			it.second = it.second->clone();
+
+    if (allocLog) {
+        *allocLog <<node2ast(that)<<'\n';
+    }
+
 		return that;
 	}
 
@@ -269,6 +310,9 @@ void AstNode::delete_children()
 // AstNode destructor
 	AstNode::~AstNode() {
 		delete_children();
+        if (allocLog) {
+            *allocLog << "Deleting Node " << ((void *) this) << " typed " << type2str(type)<<'\n';
+        }
 	}
 
 // create a nice text representation of the node
@@ -2554,3 +2598,10 @@ AstNode * AST::find_modport(AstNode *intf, std::string name)
 	}
 
 YOSYS_NAMESPACE_END
+
+void set_allocLog(std::ofstream * p) {
+    Yosys::allocLog = p;
+}
+std::ofstream* get_allocLog() {
+    return Yosys::allocLog;
+}
