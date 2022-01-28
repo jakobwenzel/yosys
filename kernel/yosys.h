@@ -313,7 +313,7 @@ RTLIL::IdString new_id(std::string file, int line, std::string func);
 //
 //  sed -i.orig -r 's/"\\\\([a-zA-Z0-9_]+)"/ID(\1)/g; s/"(\$[a-zA-Z0-9_]+)"/ID(\1)/g;' <filename>
 //
-#define ID(_id) ([]() { const char *p = "\\" #_id, *q = p[1] == '$' ? p+1 : p; \
+#define ID(_id) ([]() { const char *p = "\\" #_id; const char *q = p[1] == '$' ? p+1 : p; \
         static const YOSYS_NAMESPACE_PREFIX RTLIL::IdString id(q); return id; })()
 namespace ID = RTLIL::ID;
 
