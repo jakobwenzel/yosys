@@ -1121,6 +1121,9 @@ public:
 	void remove(const pool<RTLIL::Wire*> &wires);
 	void remove(RTLIL::Cell *cell);
 
+    //Remove from wires list and delete. Make sure the wire is unused!
+    void erase(RTLIL::Wire* wire);
+
 	void rename(RTLIL::Wire *wire, RTLIL::IdString new_name);
 	void rename(RTLIL::Cell *cell, RTLIL::IdString new_name);
 	void rename(RTLIL::IdString old_name, RTLIL::IdString new_name);

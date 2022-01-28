@@ -1630,6 +1630,11 @@ void RTLIL::Module::add(RTLIL::Cell *cell)
 	cell->module = this;
 }
 
+void RTLIL::Module::erase(RTLIL::Wire* wire) {
+    log_assert(wires_.count(wire->name) != 0);
+    wires_.erase(wire->name);
+    delete wire;
+}
 void RTLIL::Module::remove(const pool<RTLIL::Wire*> &wires)
 {
 	log_assert(refcount_wires_ == 0);
@@ -1673,9 +1678,7 @@ void RTLIL::Module::remove(const pool<RTLIL::Wire*> &wires)
 	rewrite_sigspecs2(delete_wire_worker);
 
 	for (auto &it : wires) {
-		log_assert(wires_.count(it->name) != 0);
-		wires_.erase(it->name);
-		delete it;
+        erase(it);
 	}
 }
 
