@@ -4256,3 +4256,41 @@ module SRLC16E (...);
     input A0, A1, A2, A3, CE, CLK, D;
 endmodule
 
+module FORMAL_AND2 (...);
+    output O;
+    input I0, I1;
+endmodule
+
+module FORMAL_AND3 (...);
+    output O;
+    input I0, I1, I2;
+endmodule
+
+module FORMAL_AND4 (...);
+    output O;
+    input I0, I1, I2, I3;
+endmodule
+
+module FORMAL_INV (...);
+    output O;
+    input I;
+endmodule
+
+module FORMAL_RAMD128 (...);
+    parameter INIT = 128'h0000000000000000_0000000000000000;
+    output O;
+    input I, CLK, WE, WADR0, WADR1, WADR2, WADR3, WADR4, WADR5, WADR6, RADR0, RADR1, RADR2, RADR3, RADR4, RADR5, RADR6;
+endmodule
+
+module FORMAL_RAMD16 (...);
+    parameter INIT = 16'h0000;
+    output O;
+    input I, CLK, WE, WADR0, WADR1, WADR2, WADR3, RADR0, RADR1, RADR2, RADR3;
+endmodule
+
+module FORMAL_RAMS128 (...);
+    parameter INIT = 128'h0000000000000000_0000000000000000;
+    output O;
+    input I, CLK, WE, ADR0, ADR1, ADR2, ADR3, ADR4, ADR5, ADR6;
+endmodule
+

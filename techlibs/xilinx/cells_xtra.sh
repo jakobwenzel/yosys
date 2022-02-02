@@ -5,9 +5,10 @@ libdir="/opt/Xilinx/Vivado/2018.1/data/verilog/src"
 
 function xtract_cell_decl()
 {
-	for dir in $libdir/xeclib $libdir/retarget; do
+	for dir in $libdir/xeclib $libdir/retarget  $libdir/unisims; do
 		[ -f $dir/$1.v ] || continue
 		[ -z "$2" ] || echo $2
+#		echo "// FROM $dir/$1.v"
 		egrep '^\s*((end)?module|parameter|input|inout|output|(end)?function|(end)?task)' $dir/$1.v |
 			sed -re '/UNPLACED/ d; /^\s*function/,/endfunction/ d; /^\s*task/,/endtask/ d;
 			         s,//.*,,; s/#?\(.*/(...);/; s/^(input|output|parameter)/ \1/;
@@ -15,6 +16,7 @@ function xtract_cell_decl()
 				 s/^ ((end)?module)/\1/; s/^ /    /; /module.*_bb/,/endmodule/ d;'
 		echo; return
 	done
+	echo "Can't find $1." >&2
 	echo "Can't find $1."
 	exit 1
 }
@@ -151,6 +153,14 @@ function xtract_cell_decl()
 	xtract_cell_decl AND2B1L
 	xtract_cell_decl OR2L
 	xtract_cell_decl SRLC16E
+	
+	xtract_cell_decl FORMAL_AND2
+	xtract_cell_decl FORMAL_AND3
+	xtract_cell_decl FORMAL_AND4
+	xtract_cell_decl FORMAL_INV
+	xtract_cell_decl FORMAL_RAMD128
+	xtract_cell_decl FORMAL_RAMD16
+	xtract_cell_decl FORMAL_RAMS128
 } > cells_xtra.new
 
 mv cells_xtra.new cells_xtra.v
