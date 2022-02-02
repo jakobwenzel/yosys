@@ -378,3 +378,10 @@ module SRLC32E (
       always @(posedge CLK) if (CE) r <= { r[30:0], D };
   endgenerate
 endmodule
+
+module FORMAL_MUX2 (O, IA, IB, SEL);
+
+  output O;
+  input IA, IB, SEL;
+  assign O = SEL ? IB : IA;
+endmodule
