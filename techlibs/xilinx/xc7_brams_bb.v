@@ -118,8 +118,27 @@ module RAMB18E1 (
 
 	parameter WRITE_MODE_A = "WRITE_FIRST";
 	parameter WRITE_MODE_B = "WRITE_FIRST";
+    parameter RSTREG_PRIORITY_A = "RSTREG";
+    parameter RSTREG_PRIORITY_B = "RSTREG";
 
 	parameter SIM_DEVICE = "VIRTEX6";
+    parameter SIM_COLLISION_CHECK = "ALL";
+
+    parameter INIT_A = 18'h0;
+
+    parameter INIT_B = 18'h0;
+
+    parameter INIT_FILE = "NONE";
+
+    parameter RDADDR_COLLISION_HWCONFIG = "DELAYED_WRITE";
+
+    parameter SRVAL_A = 18'h0;
+
+    parameter SRVAL_B = 18'h0;
+
+
+
+
 endmodule
 
 module RAMB36E1 (
@@ -315,5 +334,22 @@ module RAMB36E1 (
 	parameter WRITE_MODE_A = "WRITE_FIRST";
 	parameter WRITE_MODE_B = "WRITE_FIRST";
 
+    parameter RSTREG_PRIORITY_A = "RSTREG";
+    parameter RSTREG_PRIORITY_B = "RSTREG";
 	parameter SIM_DEVICE = "VIRTEX6";
+    parameter SIM_COLLISION_CHECK = "ALL";
+    parameter INIT_A = 18'h0;
+
+    parameter INIT_B = 18'h0;
+
+    parameter INIT_FILE = "NONE";
+
+    parameter RDADDR_COLLISION_HWCONFIG = "DELAYED_WRITE";
+
+    parameter SRVAL_A = 18'h0;
+
+    parameter SRVAL_B = 18'h0;
+
+
+
 endmodule
