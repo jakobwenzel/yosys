@@ -948,6 +948,7 @@ struct RTLIL::Monitor
 	virtual void notify_connect(RTLIL::Module*, const RTLIL::SigSig&) { }
 	virtual void notify_connect(RTLIL::Module*, const std::vector<RTLIL::SigSig>&) { }
 	virtual void notify_blackout(RTLIL::Module*) { }
+    virtual void notify_design_delete(RTLIL::Design*) {}
 };
 
 struct RTLIL::Design

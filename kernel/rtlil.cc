@@ -415,6 +415,8 @@ RTLIL::Design::~Design()
 		delete n;
 	for (auto n : verilog_globals)
 		delete n;
+    for (auto m : monitors)
+        m->notify_design_delete(this);
 #ifdef WITH_PYTHON
 	RTLIL::Design::get_all_designs()->erase(hashidx_);
 #endif
