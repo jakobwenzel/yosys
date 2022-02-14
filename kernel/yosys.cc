@@ -819,9 +819,16 @@ std::string proc_share_dirname()
 	return "/share/";
 }
 #else
+std::string overridden_share_dirname;
+void override_share_dirname(const std::string & share_dirname) {
+    overridden_share_dirname = share_dirname;
+}
 std::string proc_share_dirname()
 {
 	std::string proc_self_path = proc_self_dirname();
+    if (!overridden_share_dirname.empty()) {
+        return overridden_share_dirname;
+    }
 #  if defined(_WIN32) && !defined(YOSYS_WIN32_UNIX_DIR)
 	std::string proc_share_path = proc_self_path + "share\\";
 	if (check_file_exists(proc_share_path, true))
