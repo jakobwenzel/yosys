@@ -69,6 +69,7 @@ extern int log_make_debug;
 extern int log_force_debug;
 extern int log_debug_suppressed;
 
+int log_depth();
 void logv(const char *format, va_list ap);
 void logv_header(RTLIL::Design *design, const char *format, va_list ap);
 void logv_warning(const char *format, va_list ap);

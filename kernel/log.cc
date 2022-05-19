@@ -460,6 +460,10 @@ void log_push()
     }
 }
 
+int log_depth() {
+    return header_count.size();
+}
+
 void log_pop()
 {
 	header_count.pop_back();
