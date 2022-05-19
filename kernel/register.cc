@@ -597,11 +597,19 @@ Backend::~Backend()
 void Backend::execute(std::vector<std::string> args, RTLIL::Design *design)
 {
 	std::ostream *f = NULL;
+
+    struct c {
+        std::ostream*&f;
+        c(std::ostream*&f) : f(f){}
+        ~c() {
+            if (f != &std::cout)
+                delete f;
+        }
+    } deleter(f);
+
 	auto state = pre_execute();
 	execute(f, std::string(), args, design);
 	post_execute(state);
-	if (f != &std::cout)
-		delete f;
 }
 
 void Backend::extra_args(std::ostream *&f, std::string &filename, std::vector<std::string> args, size_t argidx)
