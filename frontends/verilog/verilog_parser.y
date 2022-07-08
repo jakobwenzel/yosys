@@ -324,14 +324,16 @@ single_module_para:
 		astbuf1 = new AstNode(AST_PARAMETER);
 		astbuf1->children.push_back(AstNode::mkconst_int(0, true));
 		append_attr(astbuf1, $1);
-	} param_signed param_integer param_range single_param_decl |
+		astbuf1->attributes["\\decl_in_header"]=AstNode::mkconst_int(1, true);
+	} param_signed param_integer param_range single_header_param_decl |
 	attr TOK_LOCALPARAM {
 		if (astbuf1) delete astbuf1;
 		astbuf1 = new AstNode(AST_LOCALPARAM);
 		astbuf1->children.push_back(AstNode::mkconst_int(0, true));
 		append_attr(astbuf1, $1);
-	} param_signed param_integer param_range single_param_decl |
-	single_param_decl;
+		astbuf1->attributes["\\decl_in_header"]=AstNode::mkconst_int(1, true);
+	} param_signed param_integer param_range single_header_param_decl |
+	single_header_param_decl;
 
 module_args_opt:
 	'(' ')' | /* empty */ | '(' module_args optional_comma ')';
@@ -1159,6 +1161,7 @@ param_decl:
 		astbuf1 = new AstNode(AST_PARAMETER);
 		astbuf1->children.push_back(AstNode::mkconst_int(0, true));
 		append_attr(astbuf1, $1);
+		astbuf1->attributes["\\decl_in_header"]=AstNode::mkconst_int(0, true);
 	} param_signed param_integer param_real param_range param_decl_list ';' {
 		delete astbuf1;
 	};
@@ -1168,14 +1171,15 @@ localparam_decl:
 		astbuf1 = new AstNode(AST_LOCALPARAM);
 		astbuf1->children.push_back(AstNode::mkconst_int(0, true));
 		append_attr(astbuf1, $1);
+		astbuf1->attributes["\\decl_in_header"]=AstNode::mkconst_int(0, true);
 	} param_signed param_integer param_real param_range param_decl_list ';' {
 		delete astbuf1;
 	};
 
 param_decl_list:
-	single_param_decl | param_decl_list ',' single_param_decl;
+	single_body_param_decl | param_decl_list ',' single_body_param_decl;
 
-single_param_decl:
+single_body_param_decl:
 	TOK_ID '=' expr {
 		AstNode *node;
 		if (astbuf1 == nullptr) {
@@ -1190,8 +1194,29 @@ single_param_decl:
 		delete node->children[0];
 		node->children[0] = $3;
 		ast_stack.back()->children.push_back(node);
+		node->attributes["\\decl_in_header"]=AstNode::mkconst_int(0, true);
 		delete $1;
 	};
+
+single_header_param_decl:
+	TOK_ID '=' expr {
+		AstNode *node;
+		if (astbuf1 == nullptr) {
+			if (!sv_mode)
+				frontend_verilog_yyerror("In pure Verilog (not SystemVerilog), parameter/localparam with an initializer must use the parameter/localparam keyword");
+			node = new AstNode(AST_PARAMETER);
+			node->children.push_back(AstNode::mkconst_int(0, true));
+		} else {
+			node = astbuf1->clone();
+		}
+		node->str = *$1;
+		delete node->children[0];
+		node->children[0] = $3;
+		ast_stack.back()->children.push_back(node);
+		node->attributes["\\decl_in_header"]=AstNode::mkconst_int(1, true);
+		delete $1;
+	};
+
 
 defparam_decl:
 	TOK_DEFPARAM defparam_decl_list ';';
