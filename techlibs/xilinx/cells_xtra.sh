@@ -1,7 +1,7 @@
 #!/bin/bash
 
 set -e
-libdir="/opt/Xilinx/Vivado/2018.1/data/verilog/src"
+libdir="/cad/xilinx/tools/Vivado/2020.1/Vivado/2020.1/data/verilog/src"
 
 function xtract_cell_decl()
 {
@@ -9,7 +9,7 @@ function xtract_cell_decl()
 		[ -f $dir/$1.v ] || continue
 		[ -z "$2" ] || echo $2
 #		echo "// FROM $dir/$1.v"
-		egrep '^\s*((end)?module|parameter|input|inout|output|(end)?function|(end)?task)' $dir/$1.v |
+		yosys -QTp "read_verilog -ppdump $dir/$1.v" | egrep '^\s*((end)?module|parameter|input|inout|output|(end)?function|(end)?task)' |
 			sed -re '/UNPLACED/ d; /^\s*function/,/endfunction/ d; /^\s*task/,/endtask/ d;
 			         s,//.*,,; s/#?\(.*/(...);/; s/^(input|output|parameter)/ \1/;
 			         s/\s+$//; s/,$/;/; /input|output|parameter/ s/[^;]$/&;/; s/\s+/ /g;
@@ -70,6 +70,7 @@ function xtract_cell_decl()
 	xtract_cell_decl IBUFDS_GTE2
 	xtract_cell_decl IBUFDS_IBUFDISABLE
 	xtract_cell_decl IBUFDS_INTERMDISABLE
+	xtract_cell_decl IBUFG
 	xtract_cell_decl ICAPE2 "(* keep *)"
 	xtract_cell_decl IDDR
 	xtract_cell_decl IDDR_2CLK

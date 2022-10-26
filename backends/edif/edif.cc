@@ -34,6 +34,18 @@ PRIVATE_NAMESPACE_BEGIN
 #define EDIF_DEFR(_id, _ren, _bl, _br) edif_names(RTLIL::unescape_id(_id), true, _ren, _bl, _br).c_str()
 #define EDIF_REF(_id) edif_names(RTLIL::unescape_id(_id), false).c_str()
 
+std::string escape_content(const std::string & id) {
+	std::ostringstream ss;
+	for (auto c : id) {
+		if (c == '%' || c == '"') {
+			ss << "% " << ((int)c) << " %";
+		} else {
+			ss << c;
+		}
+	}
+	return ss.str();
+}
+
 struct EdifNames
 {
 	int counter;
@@ -43,17 +55,6 @@ struct EdifNames
 
 	EdifNames() : counter(1), delim_left('['), delim_right(']') { }
 
-	std::string escape_content(const std::string & id) {
-		std::ostringstream ss;
-		for (auto c : id) {
-			if (c == '%' || c == '"') {
-				ss << "% " << ((int)c) << " %";
-			} else {
-				ss << c;
-			}
-		}
-		return ss.str();
-	}
 
 	std::string operator()(std::string id, bool define, bool port_rename = false, int range_left = 0, int range_right = 0)
 	{
@@ -264,7 +265,7 @@ struct EdifBackend : public Backend {
 
 		auto add_prop = [&](IdString name, Const val) {
 		  if ((val.flags & RTLIL::CONST_FLAG_STRING) != 0)
-			  *f << stringf("\n            (property %s (string \"%s\"))", EDIF_DEF(name), val.decode_string().c_str());
+			  *f << stringf("\n            (property %s (string \"%s\"))", EDIF_DEF(name), escape_content(val.decode_string()).c_str());
 		  else if (val.bits.size() <= 32 && RTLIL::SigSpec(val).is_fully_def())
 			  *f << stringf("\n            (property %s (integer %u))", EDIF_DEF(name), val.as_int());
 		  else {
@@ -327,7 +328,15 @@ struct EdifBackend : public Backend {
 					else if (!ct.cell_input(cell_it.first, port_it.first))
 						dir = "OUTPUT";
 				}
-				if (port_it.second == 1)
+				auto width = port_it.second;
+				auto m = design->module(cell_it.first);
+				if (m) {
+					auto w = m->wire(port_it.first);
+					if (w) {
+						width = w->width;
+					}
+				}
+				if (width == 1)
 					*f << stringf("          (port %s (direction %s))\n", EDIF_DEF(port_it.first), dir);
 				else {
 					int b[2] = {port_it.second-1, 0};

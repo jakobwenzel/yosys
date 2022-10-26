@@ -1055,7 +1055,7 @@ void AstNode::delete_children()
 					}
 				}
 				fprintf(f, " %s = ", id2vl(str).c_str());
-				children[0]->dumpVlog(f, "", inGenerate, type);
+				children.at(0)->dumpVlog(f, "", inGenerate, type);
 				fprintf(f, ";\n");
 				break;
 

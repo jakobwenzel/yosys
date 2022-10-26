@@ -741,8 +741,10 @@ bool AstNode::simplify(bool const_fold, bool at_zero, bool in_lvalue, int stage,
 	// convert defparam nodes to cell parameters
 	if (type == AST_DEFPARAM && !children.empty())
 	{
-		if (children[0]->type != AST_IDENTIFIER)
-			log_file_error(filename, linenum, "Module name in defparam contains non-constant expressions!\n");
+		if (children[0]->type != AST_IDENTIFIER) {
+            this->dumpAst();
+            log_file_error(filename, linenum, "Module name in defparam contains non-constant expressions!\n");
+        }
 
 		string modname, paramname = children[0]->str;
 
