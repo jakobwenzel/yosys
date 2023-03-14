@@ -336,9 +336,9 @@ struct EdifBackend : public Backend {
 						width = w->width;
 					}
 				}
-				if (width == 1)
-					*f << stringf("          (port %s (direction %s))\n", EDIF_DEF(port_it.first), dir);
-				else {
+				if (width == 1) {
+                    *f << stringf("          (port %s (direction %s))\n", EDIF_DEF(port_it.first), dir);
+                } else {
 					int b[2] = {port_it.second-1, 0};
 					auto m = design->module(cell_it.first);
 					if (m) {
@@ -348,7 +348,7 @@ struct EdifBackend : public Backend {
 							b[w->upto ? 1 : 0] = w->start_offset+GetSize(w)-1;
 						}
 					}
-					*f << stringf("          (port (array %s %d) (direction %s))\n", EDIF_DEFR(port_it.first, port_rename, b[0], b[1]), port_it.second, dir);
+					*f << stringf("          (port (array %s %d) (direction %s))\n", EDIF_DEFR(port_it.first, port_rename, b[0], b[1]), width, dir);
 				}
 			}
 			*f << stringf("        )\n");

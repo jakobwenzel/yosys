@@ -35,6 +35,7 @@
 #include <stdarg.h>
 #include <stdlib.h>
 #include <math.h>
+#include <unistd.h>
 
 YOSYS_NAMESPACE_BEGIN
 
@@ -2772,8 +2773,11 @@ AstNode *AstNode::readmem(bool is_readmemh, std::string mem_filename, AstNode *m
 	f.open(mem_filename.c_str());
 	yosys_input_files.insert(mem_filename);
 
-	if (f.fail())
-		log_file_error(filename, linenum, "Can not open file `%s` for %s.\n", mem_filename.c_str(), str.c_str());
+	if (f.fail()) {
+        char buff[PATH_MAX];
+        getcwd( buff, PATH_MAX );
+        log_file_error(filename, linenum, "Can not open file `%s` for %s. cwd is %s\n", mem_filename.c_str(), str.c_str(), buff);
+    }
 
 	log_assert(GetSize(memory->children) == 2 && memory->children[1]->type == AST_RANGE && memory->children[1]->range_valid);
 	int range_left =  memory->children[1]->range_left, range_right =  memory->children[1]->range_right;
