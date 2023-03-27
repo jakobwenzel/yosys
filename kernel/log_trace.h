@@ -11,7 +11,8 @@ YOSYS_NAMESPACE_BEGIN
     using HeaderFunc = void (*)(std::string formatted, std::string header_id);
     using LevelFunc = void (*)();
 
-    void log_set_callbacks(HeaderFunc header, LevelFunc push, LevelFunc pop);
+    void log_set_callbacks(HeaderFunc header, LevelFunc push, LevelFunc pop, LevelFunc finishPass);
+    void pass_finished();
 YOSYS_NAMESPACE_END
 
 #endif //LOG_TRACE_H

@@ -45,11 +45,19 @@ YOSYS_NAMESPACE_BEGIN
 HeaderFunc headerFunc = nullptr;
 LevelFunc pushFunc = nullptr;
 LevelFunc popFunc = nullptr;
+LevelFunc finishFunc = nullptr;
 
-void log_set_callbacks(HeaderFunc header, LevelFunc push, LevelFunc pop) {
+void log_set_callbacks(HeaderFunc header, LevelFunc push, LevelFunc pop, LevelFunc finishPass) {
     headerFunc = header;
     pushFunc =push;
     popFunc = pop;
+    finishFunc = finishPass;
+}
+
+void pass_finished() {
+    if (finishFunc!=nullptr) {
+        finishFunc();
+    }
 }
 
 std::vector<FILE*> log_files;

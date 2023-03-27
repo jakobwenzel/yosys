@@ -19,6 +19,7 @@
 
 #include "kernel/yosys.h"
 #include "kernel/satgen.h"
+#include "kernel/log_trace.h"
 
 #include <string.h>
 #include <stdlib.h>
@@ -153,6 +154,8 @@ void Pass::post_execute(Pass::pre_post_exec_state_t state)
 	current_pass = state.parent_pass;
 	if (current_pass)
 		current_pass->runtime_ns -= time_ns;
+
+    pass_finished();
 }
 
 void Pass::help()
