@@ -1,7 +1,7 @@
 #!/bin/bash
 
 set -e
-libdir="/cad/xilinx/tools/Vivado/2020.1/Vivado/2020.1/data/verilog/src"
+libdir="/cad/xilinx/tools/Vivado/2020.1.old/Vivado/2020.1/data/verilog/src"
 
 function xtract_cell_decl()
 {
@@ -26,6 +26,7 @@ function xtract_cell_decl()
 	echo
 
 	# Design elements types listed in Xilinx UG953
+	xtract_cell_decl BSCAN_SPARTAN6
 	xtract_cell_decl BSCANE2
 	# xtract_cell_decl BUFG
 	xtract_cell_decl BUFGCE
@@ -71,6 +72,7 @@ function xtract_cell_decl()
 	xtract_cell_decl IBUFDS_IBUFDISABLE
 	xtract_cell_decl IBUFDS_INTERMDISABLE
 	xtract_cell_decl IBUFG
+	xtract_cell_decl IBUFGDS
 	xtract_cell_decl ICAPE2 "(* keep *)"
 	xtract_cell_decl IDDR
 	xtract_cell_decl IDDR_2CLK
@@ -96,6 +98,7 @@ function xtract_cell_decl()
 	# xtract_cell_decl LUT5
 	# xtract_cell_decl LUT6
 	#xtract_cell_decl LUT6_2
+	xtract_cell_decl LUT5_L
 	xtract_cell_decl MMCME2_ADV
 	xtract_cell_decl MMCME2_BASE
 	# xtract_cell_decl MUXF7
@@ -141,6 +144,8 @@ function xtract_cell_decl()
 	#xtract_cell_decl SRL16E
 	#xtract_cell_decl SRLC32E
 	xtract_cell_decl STARTUPE2 "(* keep *)"
+	xtract_cell_decl STARTUP_VIRTEX5
+	xtract_cell_decl SYSMON
 	xtract_cell_decl USR_ACCESSE2
 	xtract_cell_decl XADC
 	xtract_cell_decl DCM
@@ -149,6 +154,7 @@ function xtract_cell_decl()
 	xtract_cell_decl ODDR2
 	xtract_cell_decl MULT18X18
 	xtract_cell_decl RAMB16_S9_S9
+	xtract_cell_decl RAMB16_S9_S18
 	xtract_cell_decl RAMB16_S18_S18
 	xtract_cell_decl RAMB16_S36_S36
 	xtract_cell_decl AND2B1L
