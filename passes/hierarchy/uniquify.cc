@@ -90,6 +90,9 @@ struct UniquifyPass : public Pass {
 					if (smod->attributes.count("\\hdlname") == 0)
 						smod->attributes["\\hdlname"] = string(log_id(tmod->name));
 					design->add(smod);
+                    if (design->selected(tmod)) {
+                        design->selection().select(smod);
+                    }
 
 					did_something = true;
 					count++;
