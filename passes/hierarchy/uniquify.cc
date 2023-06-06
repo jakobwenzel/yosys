@@ -19,6 +19,20 @@
 
 #include "kernel/yosys.h"
 
+YOSYS_NAMESPACE_BEGIN
+
+
+
+using UniquifyNameGenFunction = Yosys::IdString(*)(Yosys::Module *, Yosys::Cell *);
+UniquifyNameGenFunction uniquifyNameGen = nullptr;
+
+void setUniquifyNameGen(UniquifyNameGenFunction f) {
+    uniquifyNameGen = f;
+}
+
+
+YOSYS_NAMESPACE_END
+
 USING_YOSYS_NAMESPACE
 PRIVATE_NAMESPACE_BEGIN
 
@@ -41,6 +55,14 @@ struct UniquifyPass : public Pass {
 		log("attribute set (the 'top' module is unique implicitly).\n");
 		log("\n");
 	}
+
+    Yosys::IdString makeUniqueName(Yosys::Module* module, Yosys::Cell*cell) {
+        if (uniquifyNameGen == nullptr) {
+            return module->name.str()+"."+log_id(cell->name);
+        }
+        return uniquifyNameGen(module, cell);
+    }
+
 	void execute(std::vector<std::string> args, RTLIL::Design *design) YS_OVERRIDE
 	{
 		log_header(design, "Executing UNIQUIFY pass (creating unique copies of modules).\n");
@@ -70,7 +92,7 @@ struct UniquifyPass : public Pass {
 				for (auto cell : module->selected_cells())
 				{
 					Module *tmod = design->module(cell->type);
-					IdString newname = module->name.str() + "." + log_id(cell->name);
+					IdString newname = makeUniqueName(module, cell);
 
 					if (tmod == nullptr)
 						continue;
