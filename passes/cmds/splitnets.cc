@@ -109,6 +109,154 @@ struct SplitnetsPass : public Pass {
 		log("        and split nets so that no driver drives only part of a net.\n");
 		log("\n");
 	}
+
+    void splitAtChunkBorders(const RTLIL::SigSpec &sig, bool flag_ports, std::map<RTLIL::Wire*, std::set<int>> &split_wires_at) {
+        for (auto &chunk : sig.chunks()) {
+            if (chunk.wire == NULL)
+                continue;
+            if (chunk.wire->port_id == 0 || flag_ports) {
+                if (chunk.offset != 0) {
+                    split_wires_at[chunk.wire].insert(chunk.offset);
+                }
+                if (chunk.offset + chunk.width < chunk.wire->width) {
+                    split_wires_at[chunk.wire].insert(chunk.offset + chunk.width);
+                }
+            }
+        }
+    }
+    void run_on_module(Module * module, bool flag_ports, bool flag_driver, Design * design, const std::string & format, dict<IdString, dict<IdString, vector<IdString>>> &module_ports_db, pool<IdString>& handled) {
+
+        if (handled.count(module->name)!=0 || !design->selected(module)) {
+            return;
+        }
+        handled.insert(module->name);
+
+        SplitnetsWorker worker;
+
+        if (flag_ports)
+        {
+            int normalized_port_factor = 0;
+
+            for (auto wire : module->wires())
+                if (wire->port_id != 0) {
+                    normalized_port_factor = max(normalized_port_factor, wire->port_id+1);
+                    normalized_port_factor = max(normalized_port_factor, GetSize(wire)+1);
+                }
+
+            for (auto wire : module->wires())
+                wire->port_id *= normalized_port_factor;
+        }
+
+        if (flag_driver)
+        {
+            for (auto &c : module->cells_) {
+                run_on_module(design->module(c.second->type), flag_ports, flag_driver, design, format,
+                              module_ports_db, handled);
+                apply_split_ports(c.second, design, module_ports_db);
+            }
+            CellTypes ct(design);
+
+            std::map<RTLIL::Wire*, std::set<int>> split_wires_at;
+
+            for (auto &c : module->cells_) {
+                for (auto &p: c.second->connections()) {
+                    if (!ct.cell_known(c.second->type)) {
+                        continue;
+                    }
+                    if (!ct.cell_output(c.second->type, p.first)) {
+                        continue;
+                    }
+
+                    splitAtChunkBorders(p.second, flag_ports, split_wires_at);
+                }
+            }
+
+            for (const auto &p: module->connections_) {
+                splitAtChunkBorders(p.first, flag_ports, split_wires_at);
+            }
+
+            for (auto &it : split_wires_at) {
+                int cursor = 0;
+                for (int next_cursor : it.second) {
+                    worker.append_wire(module, it.first, cursor, next_cursor - cursor, format);
+                    cursor = next_cursor;
+                }
+                worker.append_wire(module, it.first, cursor, it.first->width - cursor, format);
+            }
+        }
+        else
+        {
+            for (auto &w : module->wires_) {
+                RTLIL::Wire *wire = w.second;
+                if (wire->width > 1 && (wire->port_id == 0 || flag_ports) && design->selected(module, w.second))
+                    worker.splitmap[wire] = std::vector<RTLIL::SigBit>();
+            }
+
+            for (auto &it : worker.splitmap)
+                for (int i = 0; i < it.first->width; i++)
+                    worker.append_wire(module, it.first, i, 1, format);
+        }
+
+        module->rewrite_sigspecs(worker);
+
+        if (flag_ports)
+        {
+            for (auto wire : module->wires())
+            {
+                if (wire->port_id == 0)
+                    continue;
+
+                SigSpec sig(wire);
+                worker(sig);
+
+                if (sig == wire)
+                    continue;
+
+                vector<IdString> &new_ports = module_ports_db[module->name][wire->name];
+
+                for (SigSpec c : sig.chunks())
+                    new_ports.push_back(c.as_wire()->name);
+            }
+        }
+
+        pool<RTLIL::Wire*> delete_wires;
+        for (auto &it : worker.splitmap)
+            delete_wires.insert(it.first);
+        module->remove(delete_wires);
+
+        if (flag_ports)
+            module->fixup_ports();
+    }
+
+    void apply_split_ports(Cell * cell, Design * design, const dict<IdString, dict<IdString, vector<IdString>>> &module_ports_db) {
+        if (module_ports_db.count(cell->type) == 0)
+            return;
+
+        for (auto &it : module_ports_db.at(cell->type))
+        {
+            IdString port_id = it.first;
+            const auto &new_port_ids = it.second;
+
+            if (!cell->hasPort(port_id))
+                continue;
+
+            int offset = 0;
+            SigSpec sig = cell->getPort(port_id);
+
+            for (auto nid : new_port_ids)
+            {
+                int nlen = GetSize(design->module(cell->type)->wire(nid));
+                if (offset + nlen > GetSize(sig))
+                    nlen = GetSize(sig) - offset;
+                if (nlen > 0) {
+                    cell->setPort(nid, sig.extract(offset, nlen));
+                }
+                offset += nlen;
+            }
+
+            cell->unsetPort(port_id);
+        }
+    }
 	void execute(std::vector<std::string> args, RTLIL::Design *design) YS_OVERRIDE
 	{
 		bool flag_ports = false;
@@ -139,135 +287,19 @@ struct SplitnetsPass : public Pass {
 		// module_ports_db[module_name][old_port_name] = new_port_name_list
 		dict<IdString, dict<IdString, vector<IdString>>> module_ports_db;
 
+        pool<IdString> handled;
 		for (auto module : design->selected_modules())
 		{
-			SplitnetsWorker worker;
-
-			if (flag_ports)
-			{
-				int normalized_port_factor = 0;
-
-				for (auto wire : module->wires())
-					if (wire->port_id != 0) {
-						normalized_port_factor = max(normalized_port_factor, wire->port_id+1);
-						normalized_port_factor = max(normalized_port_factor, GetSize(wire)+1);
-					}
-
-				for (auto wire : module->wires())
-					wire->port_id *= normalized_port_factor;
-			}
-
-			if (flag_driver)
-			{
-				CellTypes ct(design);
-
-				std::map<RTLIL::Wire*, std::set<int>> split_wires_at;
-
-				for (auto &c : module->cells_)
-				for (auto &p : c.second->connections())
-				{
-					if (!ct.cell_known(c.second->type))
-						continue;
-					if (!ct.cell_output(c.second->type, p.first))
-						continue;
-
-					RTLIL::SigSpec sig = p.second;
-					for (auto &chunk : sig.chunks()) {
-						if (chunk.wire == NULL)
-							continue;
-						if (chunk.wire->port_id == 0 || flag_ports) {
-							if (chunk.offset != 0)
-								split_wires_at[chunk.wire].insert(chunk.offset);
-							if (chunk.offset + chunk.width < chunk.wire->width)
-								split_wires_at[chunk.wire].insert(chunk.offset + chunk.width);
-						}
-					}
-				}
-
-				for (auto &it : split_wires_at) {
-					int cursor = 0;
-					for (int next_cursor : it.second) {
-						worker.append_wire(module, it.first, cursor, next_cursor - cursor, format);
-						cursor = next_cursor;
-					}
-					worker.append_wire(module, it.first, cursor, it.first->width - cursor, format);
-				}
-			}
-			else
-			{
-				for (auto &w : module->wires_) {
-					RTLIL::Wire *wire = w.second;
-					if (wire->width > 1 && (wire->port_id == 0 || flag_ports) && design->selected(module, w.second))
-						worker.splitmap[wire] = std::vector<RTLIL::SigBit>();
-				}
-
-				for (auto &it : worker.splitmap)
-					for (int i = 0; i < it.first->width; i++)
-						worker.append_wire(module, it.first, i, 1, format);
-			}
-
-			module->rewrite_sigspecs(worker);
-
-			if (flag_ports)
-			{
-				for (auto wire : module->wires())
-				{
-					if (wire->port_id == 0)
-						continue;
-
-					SigSpec sig(wire);
-					worker(sig);
-
-					if (sig == wire)
-						continue;
-
-					vector<IdString> &new_ports = module_ports_db[module->name][wire->name];
-
-					for (SigSpec c : sig.chunks())
-						new_ports.push_back(c.as_wire()->name);
-				}
-			}
-
-			pool<RTLIL::Wire*> delete_wires;
-			for (auto &it : worker.splitmap)
-				delete_wires.insert(it.first);
-			module->remove(delete_wires);
-
-			if (flag_ports)
-				module->fixup_ports();
+			run_on_module(module, flag_ports, flag_driver, design, format, module_ports_db, handled);
 		}
 
 		if (!module_ports_db.empty())
 		{
 			for (auto module : design->modules())
+            if (!flag_driver || !design->selected(module))
 			for (auto cell : module->cells())
 			{
-				if (module_ports_db.count(cell->type) == 0)
-					continue;
-
-				for (auto &it : module_ports_db.at(cell->type))
-				{
-					IdString port_id = it.first;
-					const auto &new_port_ids = it.second;
-
-					if (!cell->hasPort(port_id))
-						continue;
-
-					int offset = 0;
-					SigSpec sig = cell->getPort(port_id);
-
-					for (auto nid : new_port_ids)
-					{
-						int nlen = GetSize(design->module(cell->type)->wire(nid));
-						if (offset + nlen > GetSize(sig))
-							nlen = GetSize(sig) - offset;
-						if (nlen > 0)
-							cell->setPort(nid, sig.extract(offset, nlen));
-						offset += nlen;
-					}
-
-					cell->unsetPort(port_id);
-				}
+                apply_split_ports(cell, design, module_ports_db);
 			}
 		}
 	}
