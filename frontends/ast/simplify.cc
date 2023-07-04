@@ -31,10 +31,10 @@
 #include "frontends/verilog/verilog_frontend.h"
 #include "ast.h"
 
+#include <memory>
 #include <sstream>
 #include <stdarg.h>
 #include <stdlib.h>
-#include <math.h>
 #include <unistd.h>
 
 YOSYS_NAMESPACE_BEGIN
@@ -3410,34 +3410,113 @@ bool AstNode::is_simple_const_expr()
 	return true;
 }
 
-// helper function for AstNode::eval_const_function()
-void AstNode::replace_variables(std::map<std::string, AstNode::varinfo_t> &variables, AstNode *fcall)
-{
-	if (type == AST_IDENTIFIER && variables.count(str)) {
-		int offset = variables.at(str).offset, width = variables.at(str).val.bits.size();
-		if (!children.empty()) {
-			if (children.size() != 1 || children.at(0)->type != AST_RANGE)
-				log_file_error(filename, linenum, "Memory access in constant function is not supported\n%s:%d: ...called from here.\n",
-						fcall->filename.c_str(), fcall->linenum);
-			children.at(0)->replace_variables(variables, fcall);
-			while (simplify(true, false, false, 1, -1, false, true)) { }
-			if (!children.at(0)->range_valid)
-				log_file_error(filename, linenum, "Non-constant range\n%s:%d: ... called from here.\n",
-						fcall->filename.c_str(), fcall->linenum);
-			offset = min(children.at(0)->range_left, children.at(0)->range_right);
-			width = min(std::abs(children.at(0)->range_left - children.at(0)->range_right) + 1, width);
+struct AccessInfo {
+
+	bool valid = false;
+	Const * value;
+	AstNode * range = nullptr;
+	int varOffset;
+	bool is_signed;
+
+	static AccessInfo decodeAccess(std::map<std::string, AstNode::varinfo_t> &variables, std::map<std::string, AstNode::meminfo_t> &memories, AstNode * identifier, AstNode*fcall) {
+
+
+		bool isVar = variables.count(identifier->str)!=0;
+		bool isMem = memories.count(identifier->str)!=0;
+		if (!isVar && !isMem)
+			return {};
+
+		AccessInfo res;
+		res.valid = true;
+		if (isVar) {
+			auto & info = variables[identifier->str];
+			res.value = &info.val;
+			if (!identifier->children.empty()) {
+				res.range = identifier->children.at(0);
+			}
+			res.varOffset = info.offset;
+			res.is_signed = info.is_signed;
+		} else {
+			auto & info = memories[identifier->str];
+			auto *rangeNode = identifier->children.at(0);
+			AstNode *indexNode;
+			if (rangeNode->type==AST_MULTIRANGE) {
+				indexNode = rangeNode->children.at(0);
+				res.range = rangeNode->children.at(1);
+			} else {
+				indexNode = rangeNode;
+			}
+			if (!indexNode->range_valid) {
+				log_file_error(indexNode->filename, indexNode->linenum, "Non-constant range\n%s:%d: ... called from here.\n",
+					       fcall->filename.c_str(), fcall->linenum);
+			}
+			if (indexNode->range_left != indexNode->range_right) {
+				log_file_error(indexNode->filename, indexNode->linenum, "Not a single index range\n%s:%d: ... called from here.\n",
+					       fcall->filename.c_str(), fcall->linenum);
+			}
+
+			/*if (res.range!=nullptr) {
+				log("%d mem access to %s[%d][%d:%d] off %d\n", identifier->linenum, identifier->str.c_str(), indexNode->range_left, res.range->range_left, res.range->range_right, info.memOffset);
+			} else {
+				log("%d mem access to %s[%d] off %d\n", identifier->linenum, identifier->str.c_str(), indexNode->range_left, info.memOffset);
+
+			}*/
+
+			int index = indexNode->range_left;
+			res.value = &info.val.at(index-info.memOffset);
+			res.varOffset = info.valOffset;
+			res.is_signed = info.is_signed;
 		}
-		offset -= variables.at(str).offset;
-		std::vector<RTLIL::State> &var_bits = variables.at(str).val.bits;
-		std::vector<RTLIL::State> new_bits(var_bits.begin() + offset, var_bits.begin() + offset + width);
-		AstNode *newNode = mkconst_bits(new_bits, variables.at(str).is_signed);
-		newNode->cloneInto(this);
-		delete newNode;
+		return res;
+	}
+};
+
+// helper function for AstNode::eval_const_function()
+void AstNode::replace_variables(std::map<std::string, AstNode::varinfo_t> &variables, std::map<std::string, AstNode::meminfo_t> &memories, AstNode *fcall)
+{
+	for (auto &child : children)
+		child->replace_variables(variables, memories,fcall);
+	
+	if (type != AST_IDENTIFIER) {
 		return;
 	}
+	
+	auto*myClone = this->clone();
+	//We cannot simplify the whole node here, as that would involve the default mem2bits handling, which we don't want
+	for (const auto &child : children) {
+		while (child->simplify(true, false, false, 1, -1, false, true)) {}
+	}
 
-	for (auto &child : children)
-		child->replace_variables(variables, fcall);
+
+	auto accessInfo = AccessInfo::decodeAccess(variables, memories, this, fcall);
+	if (!accessInfo.valid) {
+
+		//Now we can simplify the whole node, as no default mem2bits handling can occur
+		while (simplify(true, false, false, 1, -1, false, true)) {}
+
+		if (type==AST_IDENTIFIER) {
+
+			myClone->dumpAst();
+			dumpAst();
+			log("invalid acces ?!");
+		}
+		return;
+	}
+	
+	int offset = accessInfo.varOffset, width = accessInfo.value->bits.size();
+	if (accessInfo.range!=nullptr) {
+		
+		offset = min(accessInfo.range->range_left, accessInfo.range->range_right);
+		width = min(std::abs(accessInfo.range->range_left - accessInfo.range->range_right) + 1, width);
+	}
+	offset -= accessInfo.varOffset;
+	std::vector<RTLIL::State> &var_bits = accessInfo.value->bits;
+	std::vector<RTLIL::State> new_bits(var_bits.begin() + offset, var_bits.begin() + offset + width);
+	AstNode *newNode = mkconst_bits(new_bits, accessInfo.is_signed);
+	newNode->cloneInto(this);
+	delete newNode;
+	return;
+
 }
 
 // evaluate functions with all-const arguments
@@ -3445,6 +3524,7 @@ AstNode *AstNode::eval_const_function(AstNode *fcall)
 {
 	std::map<std::string, AstNode*> backup_scope;
 	std::map<std::string, AstNode::varinfo_t> variables;
+	std::map<std::string, AstNode::meminfo_t> memories;
 	AstNode *block = new AstNode(AST_BLOCK);
 
 	size_t argidx = 0;
@@ -3461,6 +3541,28 @@ AstNode *AstNode::eval_const_function(AstNode *fcall)
 			variables[child->str].is_signed = child->is_signed;
 			if (child->is_input && argidx < fcall->children.size())
 				variables[child->str].val = fcall->children.at(argidx++)->bitsAsConst(variables[child->str].val.bits.size());
+			backup_scope[child->str] = current_scope[child->str];
+			current_scope[child->str] = child;
+			continue;
+		}
+		if (child->type == AST_MEMORY)
+		{
+			while (child->simplify(true, false, false, 1, -1, false, true)) { }
+			auto itemRange = child->children.at(0);
+			auto memRange = child->children.at(1);
+			if (!memRange->range_valid || !itemRange->range_valid)
+				log_file_error(child->filename, child->linenum, "Can't determine size of memory %s\n%s:%d: ... called from here.\n",
+					       child->str.c_str(), fcall->filename.c_str(), fcall->linenum);
+
+			RTLIL::Const initVal(RTLIL::State::Sx, abs(itemRange->range_left - itemRange->range_right)+1);
+			int size = abs(memRange->range_left - memRange->range_right)+1;
+			for (int i=0;i<size;++i) {
+				memories[child->str].val.push_back(initVal);
+			}
+			memories[child->str].valOffset = min(itemRange->range_left, itemRange->range_right);
+			memories[child->str].memOffset = min(memRange->range_left, memRange->range_right);
+			memories[child->str].is_signed = child->is_signed;
+
 			backup_scope[child->str] = current_scope[child->str];
 			current_scope[child->str] = child;
 			continue;
@@ -3485,39 +3587,44 @@ AstNode *AstNode::eval_const_function(AstNode *fcall)
 		if (stmt->type == AST_ASSIGN_EQ)
 		{
 			if (stmt->children.at(0)->type == AST_IDENTIFIER && stmt->children.at(0)->children.size() != 0 &&
-					stmt->children.at(0)->children.at(0)->type == AST_RANGE)
-				stmt->children.at(0)->children.at(0)->replace_variables(variables, fcall);
-			stmt->children.at(1)->replace_variables(variables, fcall);
+					(stmt->children.at(0)->children.at(0)->type == AST_RANGE || stmt->children.at(0)->children.at(0)->type == AST_MULTIRANGE))
+				stmt->children.at(0)->children.at(0)->replace_variables(variables, memories,fcall);
+			stmt->children.at(1)->replace_variables(variables, memories,fcall);
 			while (stmt->simplify(true, false, false, 1, -1, false, true)) { }
 
 			if (stmt->type != AST_ASSIGN_EQ)
 				continue;
 
-			if (stmt->children.at(1)->type != AST_CONSTANT)
-				log_file_error(stmt->filename, stmt->linenum, "Non-constant expression in constant function\n%s:%d: ... called from here. X\n",
-						fcall->filename.c_str(), fcall->linenum);
+			if (stmt->children.at(1)->type != AST_CONSTANT) {
+				stmt->dumpAst();
+				log_file_error(stmt->filename, stmt->linenum,
+					       "Non-constant expression in constant function\n%s:%d: ... called from here. X\n",
+					       fcall->filename.c_str(), fcall->linenum);
+			}
+
 
 			if (stmt->children.at(0)->type != AST_IDENTIFIER)
 				log_file_error(stmt->filename, stmt->linenum, "Unsupported composite left hand side in constant function\n%s:%d: ... called from here.\n",
-						fcall->filename.c_str(), fcall->linenum);
+					       fcall->filename.c_str(), fcall->linenum);
 
-			if (!variables.count(stmt->children.at(0)->str))
-				log_file_error(stmt->filename, stmt->linenum, "Assignment to non-local variable in constant function\n%s:%d: ... called from here.\n",
-						fcall->filename.c_str(), fcall->linenum);
+			auto accessInfo = AccessInfo::decodeAccess(variables, memories, stmt->children.at(0), fcall);
+			if (!accessInfo.valid) {
+				log_file_error(stmt->children.at(0)->filename, stmt->children.at(0)->linenum, "Assignment to non-local variable in constant function\n%s:%d: ... called from here.\n",
+					       fcall->filename.c_str(), fcall->linenum);
+			}
 
-			if (stmt->children.at(0)->children.empty()) {
-				variables[stmt->children.at(0)->str].val = stmt->children.at(1)->bitsAsConst(variables[stmt->children.at(0)->str].val.bits.size());
+			if (accessInfo.range ==nullptr) {
+				*accessInfo.value = stmt->children.at(1)->bitsAsConst(accessInfo.value->bits.size());
 			} else {
-				AstNode *range = stmt->children.at(0)->children.at(0);
-				if (!range->range_valid)
-					log_file_error(range->filename, range->linenum, "Non-constant range\n%s:%d: ... called from here.\n",
+				if (!accessInfo.range->range_valid)
+					log_file_error(accessInfo.range->filename, accessInfo.range->linenum, "Non-constant range\n%s:%d: ... called from here.\n",
 							fcall->filename.c_str(), fcall->linenum);
-				int offset = min(range->range_left, range->range_right);
-				int width = std::abs(range->range_left - range->range_right) + 1;
-				varinfo_t &v = variables[stmt->children.at(0)->str];
-				RTLIL::Const r = stmt->children.at(1)->bitsAsConst(v.val.bits.size());
+				int offset = min(accessInfo.range->range_left, accessInfo.range->range_right);
+				int width = std::abs(accessInfo.range->range_left - accessInfo.range->range_right) + 1;
+				//varinfo_t &v = variables[stmt->children.at(0)->str];
+				RTLIL::Const r = stmt->children.at(1)->bitsAsConst(accessInfo.value->bits.size());
 				for (int i = 0; i < width; i++)
-					v.val.bits.at(i+offset-v.offset) = r.bits.at(i);
+					accessInfo.value->bits.at(i+offset-accessInfo.varOffset) = r.bits.at(i);
 			}
 
 			delete block->children.front();
@@ -3538,7 +3645,7 @@ AstNode *AstNode::eval_const_function(AstNode *fcall)
 		if (stmt->type == AST_WHILE)
 		{
 			AstNode *cond = stmt->children.at(0)->clone();
-			cond->replace_variables(variables, fcall);
+			cond->replace_variables(variables, memories,fcall);
 			while (cond->simplify(true, false, false, 1, -1, false, true)) { }
 
 			if (cond->type != AST_CONSTANT)
@@ -3559,7 +3666,7 @@ AstNode *AstNode::eval_const_function(AstNode *fcall)
 		if (stmt->type == AST_REPEAT)
 		{
 			AstNode *num = stmt->children.at(0)->clone();
-			num->replace_variables(variables, fcall);
+			num->replace_variables(variables, memories,fcall);
 			while (num->simplify(true, false, false, 1, -1, false, true)) { }
 
 			if (num->type != AST_CONSTANT)
@@ -3578,7 +3685,7 @@ AstNode *AstNode::eval_const_function(AstNode *fcall)
 		if (stmt->type == AST_CASE)
 		{
 			AstNode *expr = stmt->children.at(0)->clone();
-			expr->replace_variables(variables, fcall);
+			expr->replace_variables(variables, memories,fcall);
 			while (expr->simplify(true, false, false, 1, -1, false, true)) { }
 
 			AstNode *sel_case = NULL;
@@ -3595,7 +3702,7 @@ AstNode *AstNode::eval_const_function(AstNode *fcall)
 				for (size_t j = 0; j+1 < stmt->children.at(i)->children.size() && !found_match; j++)
 				{
 					AstNode *cond = stmt->children.at(i)->children.at(j)->clone();
-					cond->replace_variables(variables, fcall);
+					cond->replace_variables(variables, memories,fcall);
 
 					cond = new AstNode(AST_EQ, expr->clone(), cond);
 					while (cond->simplify(true, false, false, 1, -1, false, true)) { }
@@ -3631,8 +3738,8 @@ AstNode *AstNode::eval_const_function(AstNode *fcall)
 			continue;
 		}
 
-		log_file_error(stmt->filename, stmt->linenum, "Unsupported language construct in constant function\n%s:%d: ... called from here.\n",
-				fcall->filename.c_str(), fcall->linenum);
+		log_file_error(stmt->filename, stmt->linenum, "Unsupported language construct %s in constant function\n%s:%d: ... called from here.\n",
+				type2str(stmt->type).c_str(), fcall->filename.c_str(), fcall->linenum);
 		log_abort();
 	}
 
