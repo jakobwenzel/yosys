@@ -154,6 +154,7 @@ namespace AST
 	// convert an node type to a string (e.g. for debug output)
 	std::string type2str(AstNodeType type);
 
+
 	// The AST is built using instances of this struct
 	struct AstNode
 	{
@@ -238,8 +239,21 @@ namespace AST
 		// additional functionality for evaluating constant functions
 		struct varinfo_t { RTLIL::Const val; int offset; bool is_signed; };
 		struct meminfo_t { std::vector<RTLIL::Const> val; int valOffset; int memOffset; bool is_signed; };
+
+		struct varandmeminfo_t {
+			bool isMem;
+			meminfo_t meminfo;
+			varinfo_t varinfo;
+		};
+
+
+		using BackupScope = std::map<std::string, AstNode*>;
+		using VarInfos = std::map<std::string, AstNode::varandmeminfo_t>;
+		using MemInfos = void*; //dict<std::string, AstNode::meminfo_t>;
+
+
 		bool has_const_only_constructs(bool &recommend_const_eval);
-		void replace_variables(std::map<std::string, varinfo_t> &variables, std::map<std::string, AstNode::meminfo_t> &memories, AstNode *fcall);
+		void replace_variables(VarInfos &variables, MemInfos &memories, AstNode *fcall);
 		AstNode *eval_const_function(AstNode *fcall);
 		bool is_simple_const_expr();
 
