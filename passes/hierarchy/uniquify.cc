@@ -25,7 +25,7 @@ YOSYS_NAMESPACE_BEGIN
 
 using UniquifyNameGenFunction = Yosys::IdString(*)(Yosys::Module *, Yosys::Cell *);
 UniquifyNameGenFunction uniquifyNameGen = nullptr;
-using UniquifyCloneCallback = void(Yosys::Module*, Yosys::Module*);
+using UniquifyCloneCallback = void(*)(Yosys::Module*, Yosys::Module*);
 UniquifyCloneCallback uniquifyCloneCallback = nullptr;
 
 void setUniquifyNameGen(UniquifyNameGenFunction f) {
