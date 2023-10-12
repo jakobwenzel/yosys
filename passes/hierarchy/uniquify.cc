@@ -25,9 +25,14 @@ YOSYS_NAMESPACE_BEGIN
 
 using UniquifyNameGenFunction = Yosys::IdString(*)(Yosys::Module *, Yosys::Cell *);
 UniquifyNameGenFunction uniquifyNameGen = nullptr;
+using UniquifyCloneCallback = void(Yosys::Module*, Yosys::Module*);
+UniquifyCloneCallback uniquifyCloneCallback = nullptr;
 
 void setUniquifyNameGen(UniquifyNameGenFunction f) {
     uniquifyNameGen = f;
+}
+void setUniquifyCloneCallback(UniquifyCloneCallback f) {
+    uniquifyCloneCallback = f;
 }
 
 
@@ -111,6 +116,9 @@ struct UniquifyPass : public Pass {
 					smod->set_bool_attribute("\\unique");
 					if (smod->attributes.count("\\hdlname") == 0)
 						smod->attributes["\\hdlname"] = string(log_id(tmod->name));
+					if (uniquifyCloneCallback!=nullptr) {
+						uniquifyCloneCallback(tmod, smod);
+					}
 					design->add(smod);
                     if (design->selected(tmod)) {
                         design->selection().select(smod);
