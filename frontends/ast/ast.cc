@@ -825,7 +825,7 @@ void AstNode::delete_children()
 			case AST_CONDX:
 			case AST_CONDZ:
                 if (children.size()==1) {
-                    fprintf(f, "default");
+                    fprintf(f, "%sdefault", indent.c_str());
                 }
 				for (auto child : children) {
 					if (child->type == AST_BLOCK || child->type == AST_GENBLOCK) {
