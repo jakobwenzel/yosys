@@ -529,6 +529,12 @@ public:
 		std::sort(entries.begin(), entries.end(), [comp](const entry_t &a, const entry_t &b){ return comp(b.udata.first, a.udata.first); });
 		do_rehash();
 	}
+    template<typename Compare>
+    void sortKV(Compare comp)
+    {
+        std::sort(entries.begin(), entries.end(), [comp](const entry_t &a, const entry_t &b){ return comp(b.udata, a.udata); });
+        do_rehash();
+    }
 
 	void swap(dict &other)
 	{
