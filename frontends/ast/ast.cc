@@ -351,7 +351,7 @@ void AstNode::delete_children()
                         if ('a' <= txt[i] && txt[i] <= 'z') continue;
                         if ('0' <= txt[i] && txt[i] <= '9' && i > 0) continue;
                         if (txt[i] == '_') continue;
-                        if (txt[i] == '$' && i>0) continue;
+                        if (txt[i] == '$') continue;
                         if (txt[i] == '.' && is_hierarchical_name) continue;
 				return "\\" + txt + " ";
 			}

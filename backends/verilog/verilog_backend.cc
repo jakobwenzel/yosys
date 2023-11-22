@@ -109,9 +109,6 @@ std::string id(RTLIL::IdString internal_id, bool may_rename = true)
 	if (*str == '\\')
 		str++;
 
-    if (*str == '$')
-        do_escape = true;
-
 	if ('0' <= *str && *str <= '9')
 		do_escape = true;
 
