@@ -653,6 +653,9 @@ void AstNode::delete_children()
 
 			case AST_RANGE:
 				if (range_valid) {
+                    if (range_left==range_right && children.size()==1) {
+                        fprintf(f, "[%d]", range_right);
+                    } else
 			if (range_swapped)
 						fprintf(f, "[%d:%d]", range_right, range_left);
 			else
