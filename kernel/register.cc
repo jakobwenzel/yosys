@@ -282,6 +282,10 @@ void Pass::call(RTLIL::Design *design, std::vector<std::string> args)
 	if (args.size() == 0 || args[0][0] == '#' || args[0][0] == ':')
 		return;
 
+    if (design == nullptr) {
+        log_cmd_error("Design is null\n");
+    }
+
 	if (echo_mode) {
 		log("%s", create_prompt(design, 0));
 		for (size_t i = 0; i < args.size(); i++)
