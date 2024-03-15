@@ -366,7 +366,7 @@ CXXFLAGS += -DYOSYS_ENABLE_READLINE
 ifeq ($(OS), FreeBSD)
 CXXFLAGS += -I/usr/local/include
 endif
-LDLIBS += -lreadline
+LDLIBS += -lreadline -ltinfo
 ifeq ($(LINK_CURSES),1)
 LDLIBS += -lcurses
 ABCMKARGS += "ABC_READLINE_LIBRARIES=-lcurses -lreadline"
