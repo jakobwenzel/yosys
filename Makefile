@@ -175,7 +175,7 @@ endif
 endif
 
 ifeq ($(CONFIG),clang)
-CXX = clang
+CXX = clang++
 LD = clang++
 CXXFLAGS += -std=c++11 -Os
 ABCMKARGS += ARCHFLAGS="-DABC_USE_STDINT_H"
