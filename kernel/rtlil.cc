@@ -35,6 +35,9 @@ dict<char*, int, hash_cstr_ops> RTLIL::IdString::global_id_index_;
 std::vector<int> RTLIL::IdString::global_refcount_storage_;
 std::vector<int> RTLIL::IdString::global_free_idx_list_;
 #endif
+#ifdef YOSYS_MUTEX_IDS
+std::mutex RTLIL::IdString::global_ids_mutex;
+#endif
 #ifdef YOSYS_USE_STICKY_IDS
 int RTLIL::IdString::last_created_idx_[8];
 int RTLIL::IdString::last_created_idx_ptr_;

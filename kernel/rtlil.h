@@ -19,6 +19,7 @@
 
 #include "kernel/gdb.h"
 #include "kernel/yosys.h"
+#include <mutex>
 
 #ifndef RTLIL_H
 #define RTLIL_H
@@ -84,6 +85,7 @@ namespace RTLIL
 		#undef YOSYS_SORT_ID_FREE_LIST
 		#undef YOSYS_USE_STICKY_IDS
 		#undef YOSYS_NO_IDS_REFCNT
+        #define YOSYS_MUTEX_IDS
 
 		// the global id string cache
 
@@ -98,7 +100,10 @@ namespace RTLIL
 	#ifndef YOSYS_NO_IDS_REFCNT
 		static std::vector<int> global_refcount_storage_;
 		static std::vector<int> global_free_idx_list_;
-	#endif
+    #endif
+    #ifdef YOSYS_MUTEX_IDS
+        static std::mutex global_ids_mutex;
+    #endif
 
 	#ifdef YOSYS_USE_STICKY_IDS
 		static int last_created_idx_ptr_;
@@ -108,6 +113,9 @@ namespace RTLIL
 		static inline void xtrace_db_dump()
 		{
 		#ifdef YOSYS_XTRACE_GET_PUT
+            #ifdef YOSYS_MUTEX_IDS
+            std::lock_guard<std::mutex> lock{global_ids_mutex};
+            #endif
 			for (int idx = 0; idx < GetSize(global_id_storage_); idx++)
 			{
 				if (global_id_storage_.at(idx) == nullptr)
@@ -120,6 +128,9 @@ namespace RTLIL
 
 		static inline void checkpoint()
 		{
+        #ifdef YOSYS_MUTEX_IDS
+            std::lock_guard<std::mutex> lock{global_ids_mutex};
+        #endif
 		#ifdef YOSYS_USE_STICKY_IDS
 			last_created_idx_ptr_ = 0;
 			for (int i = 0; i < 8; i++) {
@@ -136,6 +147,9 @@ namespace RTLIL
 		static inline int get_reference(int idx)
 		{
 			if (idx) {
+        #ifdef YOSYS_MUTEX_IDS
+                std::lock_guard<std::mutex> lock{global_ids_mutex};
+        #endif
 		#ifndef YOSYS_NO_IDS_REFCNT
 				global_refcount_storage_[idx]++;
 		#endif
@@ -156,6 +170,9 @@ namespace RTLIL
 
 			log_assert(p[0] == '$' || p[0] == '\\');
 			log_assert(p[1] != 0);
+        #ifdef YOSYS_MUTEX_IDS
+            std::lock_guard<std::mutex> lock{global_ids_mutex};
+        #endif
 
 			auto it = global_id_index_.find((char*)p);
 			if (it != global_id_index_.end()) {
@@ -227,6 +244,9 @@ namespace RTLIL
 			if (!destruct_guard.ok || !idx)
 				return;
 
+        #ifdef YOSYS_MUTEX_IDS
+            std::lock_guard<std::mutex> lock{global_ids_mutex};
+        #endif
 		#ifdef YOSYS_XTRACE_GET_PUT
 			if (yosys_xtrace) {
 				log("#X# PUT '%s' (index %d, refcount %d)\n", global_id_storage_.at(idx), idx, global_refcount_storage_.at(idx));
@@ -281,10 +301,16 @@ namespace RTLIL
 		}
 
 		inline const char *c_str() const {
+        #ifdef YOSYS_MUTEX_IDS
+            std::lock_guard<std::mutex> lock{global_ids_mutex};
+        #endif
 			return global_id_storage_.at(index_);
 		}
 
 		inline std::string str() const {
+        #ifdef YOSYS_MUTEX_IDS
+            std::lock_guard<std::mutex> lock{global_ids_mutex};
+        #endif
 			return std::string(global_id_storage_.at(index_));
 		}
 
