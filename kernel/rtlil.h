@@ -1391,9 +1391,9 @@ protected:
 	// use module->addCell() and module->remove() to create or destroy cells
 	friend struct RTLIL::Module;
 	Cell();
-	~Cell();
 
 public:
+    ~Cell();
 	// do not simply copy cells
 	Cell(RTLIL::Cell &other) = delete;
 	void operator=(RTLIL::Cell &other) = delete;
