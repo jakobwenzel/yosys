@@ -553,15 +553,17 @@ struct OptCleanPass : public Pass {
 		for (auto module : design->selected_whole_modules_warn()) {
 			if (module->has_processes_warn())
 				continue;
+
+			module->optimize();
+			module->sort();
+			module->check();
+
 			rmunused_module(module, purge_mode, true, true);
 		}
 
 		if (count_rm_cells > 0 || count_rm_wires > 0)
 			log("Removed %d unused cells and %d unused wires.\n", count_rm_cells, count_rm_wires);
 
-		design->optimize();
-		design->sort();
-		design->check();
 
 		keep_cache.reset();
 		ct_reg.clear();
