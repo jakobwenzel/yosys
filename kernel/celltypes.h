@@ -76,8 +76,29 @@ struct CellTypes
 
 	void setup_design(RTLIL::Design *design)
 	{
-		for (auto module : design->modules())
-			setup_module(module);
+		if (!design->selection().full_selection) {
+
+			pool<IdString> neededChildren;
+			for (auto *module : design->modules()) {
+				if (!design->selected(module)) {
+					continue;
+				}
+				setup_module(module);
+				for (auto * cell: module->cells()) {
+					neededChildren.insert(cell->type);
+				}
+			}
+			for (const auto &child : neededChildren) {
+				if (design->selected_module(child)) {
+					//Already handled above
+					continue;
+				}
+				setup_module(design->module(child));
+			}
+		} else {
+			for (auto module : design->modules())
+				setup_module(module);
+		}
 	}
 
 	void setup_internals()
