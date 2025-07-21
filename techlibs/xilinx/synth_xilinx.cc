@@ -97,6 +97,9 @@ struct SynthXilinxPass : public ScriptPass
 		log("    -abc9\n");
 		log("        use new ABC9 flow (EXPERIMENTAL)\n");
 		log("\n");
+		log("    -flowmap\n");
+		log("        use flowmap instead of abc\n");
+		log("\n");
 		log("\n");
 		log("The following commands are executed by this synthesis command:\n");
 		help_script();
@@ -104,7 +107,7 @@ struct SynthXilinxPass : public ScriptPass
 	}
 
 	std::string top_opt, edif_file, blif_file, family;
-	bool flatten, retime, vpr, nobram, nodram, nosrl, nocarry, nowidelut, abc9;
+	bool flatten, retime, vpr, nobram, nodram, nosrl, nocarry, nowidelut, abc9, flowmap;
 	int widemux;
 
 	void clear_flags() YS_OVERRIDE
@@ -123,6 +126,7 @@ struct SynthXilinxPass : public ScriptPass
 		nocarry = false;
 		nowidelut = false;
 		abc9 = false;
+		flowmap = false;
 		widemux = 0;
 	}
 
@@ -200,6 +204,10 @@ struct SynthXilinxPass : public ScriptPass
 			}
 			if (args[argidx] == "-abc9") {
 				abc9 = true;
+				continue;
+			}
+			if (args[argidx] == "-flowmap") {
+				flowmap = true;
 				continue;
 			}
 			break;
@@ -383,8 +391,10 @@ struct SynthXilinxPass : public ScriptPass
 		if (check_label("map_luts")) {
 			run("opt_expr -mux_undef");
 			if (help_mode)
-				run("abc -luts 2:2,3,6:5[,10,20] [-dff]", "(option for 'nowidelut', option for '-retime')");
-			else if (abc9) {
+				run("flowmap or abc -luts 2:2,3,6:5[,10,20] [-dff]", "(if 'flowmap', option for 'nowidelut', option for '-retime')");
+			else if (flowmap) {
+				run("flowmap -maxlut 6 -minlut 6");
+			} else if (abc9) {
 				if (family != "xc7")
 					log_warning("'synth_xilinx -abc9' currently supports '-family xc7' only.\n");
 				if (nowidelut)
