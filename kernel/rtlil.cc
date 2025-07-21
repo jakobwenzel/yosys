@@ -829,6 +829,17 @@ size_t RTLIL::Module::count_id(RTLIL::IdString id)
 	return wires_.count(id) + memories.count(id) + cells_.count(id) + processes.count(id);
 }
 
+
+
+bool is_internal_celltype(Yosys::IdString id) {
+
+	if (!id.begins_with("$") || id.begins_with("$__") || id.begins_with("$paramod")|| id.begins_with("$pluginparamod") || id.begins_with("$fmcombine") ||
+			id.begins_with("$verific$") || id.begins_with("$array:") || id.begins_with("$extern:")) {
+		return false;
+			}
+	return true;
+}
+
 #ifndef NDEBUG
 namespace {
 	struct InternalCellChecker
@@ -923,8 +934,7 @@ namespace {
 
 		void check()
 		{
-			if (!cell->type.begins_with("$") || cell->type.begins_with("$__") || cell->type.begins_with("$paramod")|| cell->type.begins_with("$pluginparamod") || cell->type.begins_with("$fmcombine") ||
-					cell->type.begins_with("$verific$") || cell->type.begins_with("$array:") || cell->type.begins_with("$extern:"))
+			if (!is_internal_celltype(cell->type))
 				return;
 
 			if (cell->type.in(ID($not), ID($pos), ID($neg))) {

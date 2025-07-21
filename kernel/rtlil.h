@@ -1649,6 +1649,8 @@ void RTLIL::Process::rewrite_sigspecs2(T &functor)
 		it->rewrite_sigspecs2(functor);
 }
 
+bool is_internal_celltype(Yosys::IdString id);
+
 YOSYS_NAMESPACE_END
 
 #endif

@@ -93,7 +93,15 @@ struct CellTypes
 					//Already handled above
 					continue;
 				}
-				setup_module(design->module(child));
+				if (is_internal_celltype(child)) {
+					continue;
+				}
+
+				auto *c = design->module(child);
+				if (c==nullptr) {
+					log_error("did not find required module %s\n", child.c_str());
+				}
+				setup_module(c);
 			}
 		} else {
 			for (auto module : design->modules())
