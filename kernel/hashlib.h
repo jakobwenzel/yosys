@@ -325,27 +325,27 @@ class dict
 		return index;
 	}
 
-	int do_insert(const K &key, int &hash)
+	int do_insert(K key, int &hash)
 	{
 		if (hashtable.empty()) {
-			entries.push_back(entry_t(std::pair<K, T>(key, T()), -1));
+			entries.push_back(entry_t(std::pair<K, T>(std::move(key), T()), -1));
 			do_rehash();
 			hash = do_hash(key);
 		} else {
-			entries.push_back(entry_t(std::pair<K, T>(key, T()), hashtable[hash]));
+			entries.push_back(entry_t(std::pair<K, T>(std::move(key), T()), hashtable[hash]));
 			hashtable[hash] = entries.size() - 1;
 		}
 		return entries.size() - 1;
 	}
 
-	int do_insert(const std::pair<K, T> &value, int &hash)
+	int do_insert(std::pair<K, T> value, int &hash)
 	{
 		if (hashtable.empty()) {
-			entries.push_back(entry_t(value, -1));
+			entries.push_back(entry_t(std::move(value), -1));
 			do_rehash();
 			hash = do_hash(value.first);
 		} else {
-			entries.push_back(entry_t(value, hashtable[hash]));
+			entries.push_back(entry_t(std::move(value), hashtable[hash]));
 			hashtable[hash] = entries.size() - 1;
 		}
 		return entries.size() - 1;
@@ -445,13 +445,13 @@ public:
 		return std::pair<iterator, bool>(iterator(this, i), true);
 	}
 
-	std::pair<iterator, bool> insert(const std::pair<K, T> &value)
+	std::pair<iterator, bool> insert(std::pair<K, T> value)
 	{
 		int hash = do_hash(value.first);
 		int i = do_lookup(value.first, hash);
 		if (i >= 0)
 			return std::pair<iterator, bool>(iterator(this, i), false);
-		i = do_insert(value, hash);
+		i = do_insert(std::move(value), hash);
 		return std::pair<iterator, bool>(iterator(this, i), true);
 	}
 
